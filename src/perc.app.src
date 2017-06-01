@@ -8,7 +8,11 @@
     forms
    ]},
   {env,[]},
-  {modules, []},
+  {modules,
+   [
+    perc,
+    perc_types
+   ]},
 
   {maintainers, []},
   {licenses, ["MIT"]},
