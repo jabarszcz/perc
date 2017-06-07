@@ -11,7 +11,9 @@
   {modules,
    [
     perc,
-    perc_types
+    perc_types,
+    perc_backend,
+    perc_json
    ]},
 
   {maintainers, []},

@@ -2,14 +2,7 @@
 
 -define(S, erl_syntax).
 
--record(nif_module, {
-          name :: string(),
-          soname :: string(),
-          exported_records :: [string()],
-          all_records :: [string()],
-          backends :: [string()]
-         }).
-
+-include("perc.hrl").
 -include("perc_types.hrl").
 
 %% API exports
@@ -39,8 +32,12 @@ generate_codecs(Filename, RecordNames) ->
                          soname="sogenerated",
                          exported_records=RecordNames,
                          all_records=Deps,
-                         backends=["json"]},
-    generate_erlang_module(Module).
+                         backends=[perc_json]},
+    Erl = generate_erlang_module(Module),
+    Ccode = perc_backend:generate_nif_source(Module, RecordDict),
+    io:format("~s~n~s~n", [Erl, Ccode]),
+    ok = file:write_file(io_lib:format("~s.erl", [Module#nif_module.name]), Erl),
+    ok = file:write_file(io_lib:format("~s.c", [Module#nif_module.soname]), Ccode).
 
 
 %%====================================================================
@@ -82,12 +79,12 @@ generate_erlang_module(Module = #nif_module{}) ->
                                    ?S:application(
                                       ?S:atom(erlang),
                                       ?S:atom(load_nif),
-                                      [?S:string(Module#nif_module.soname),
+                                      [?S:string("./" ++ Module#nif_module.soname),
                                        ?S:integer(0)])
                                   )])]
              ),
     Funcs = [?S:function( %% TODO spec
-               ?S:atom(Backend ++ "_" ++ Action ++ "_" ++ RecName),
+               ?S:atom(lists:flatten(perc_backend:get_nif_name(Backend, Action, RecName))),
                [?S:clause([?S:underscore()],
                           none,
                           [?S:application(none, ?S:atom(throw),
