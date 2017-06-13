@@ -11,6 +11,7 @@
   {modules,
    [
     perc,
+    perc_analysis,
     perc_types,
     perc_backend,
     perc_json

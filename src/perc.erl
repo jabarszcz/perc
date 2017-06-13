@@ -24,10 +24,16 @@ main(_) ->
 
 generate_codecs(Filename, RecordNames) ->
     Forms = forms:read(Filename),
-    Records = perc_types:get_records_from_forms(Forms),
-    RecordDict = dict:from_list([{Rec#record_def.name, Rec}
-                                 || Rec <- Records]),
-    Deps = sets:to_list(record_deps(RecordDict, RecordNames)),
+    {UserTypes, Records} = perc_analysis:analyse_forms(Forms),
+    {ReducedRecords, NonReducedTypes} =
+        perc_types:reduce(Records, UserTypes),
+    RecordDict =
+        dict:from_list([{Rec#record_def.name, Rec} || Rec <- ReducedRecords]),
+    UserTypeDict =
+        dict:from_list(
+          [{Type#user_type_def.name, Type} || Type <- NonReducedTypes]
+         ),
+    Deps = perc_types:get_record_deps(RecordNames, RecordDict),
     Module = #nif_module{name="generated", %% TODO
                          soname="sogenerated",
                          exported_records=RecordNames,
@@ -43,29 +49,6 @@ generate_codecs(Filename, RecordNames) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-
-record_deps(RecordDict, ToVisit) ->
-    record_deps_(RecordDict, ToVisit, sets:from_list(ToVisit)).
-
-record_deps_(RecordDict, [Curr | ToVisit], Deps) ->
-    CurrRecord = dict:fetch(Curr, RecordDict),
-    CurrDeps = sets:to_list(perc_types:get_nested_records(CurrRecord)),
-    {NewToVisit, NewDeps} =
-        lists:foldl(
-          fun(Dep, {NewToVisit, NewDeps}) ->
-                  case sets:is_element(Dep, NewDeps) of
-                      true ->
-                          {NewToVisit, NewDeps};
-                      false ->
-                          {[Dep | NewToVisit], sets:add_element(Dep, NewDeps)}
-                  end
-          end,
-          {ToVisit, Deps},
-          CurrDeps),
-    record_deps_(RecordDict, NewToVisit, NewDeps);
-record_deps_(_, [], Deps) ->
-    Deps.
-
 
 generate_erlang_module(Module = #nif_module{}) ->
     ModuleAttr = ?S:attribute(

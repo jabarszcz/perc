@@ -46,6 +46,8 @@ generate_encode_function(Record) ->
 
 field_code(#record_field{type=ignored, name=Name}, Index) ->
     io_lib:format("    // Field ~s (~B) ignored\n", [Name, Index]);
+field_code(#record_field{type={ignored, Reason}, name=Name}, Index) ->
+    io_lib:format("    // Field ~s (~B) ignored : ~w\n", [Name, Index, Reason]);
 field_code(#record_field{type={maybe, Type}, name=Name}, Index) ->
     io_lib:format(
       "    if (!is_undefined(e, fields[~B])) {\n    ~s    }\n",
@@ -72,9 +74,11 @@ translation_code(Type, TermString) ->
 
 encode_func({record, RecordName}) ->
     perc_backend:get_enc_func_name(perc_json, "encode", RecordName);
-encode_func(Type) ->
-    io_lib:format("json_enc_~s", [atom_to_list(Type)]).
-
+encode_func({basic, Basic}) ->
+    io_lib:format("json_enc_~s", [atom_to_list(Basic)]);
+encode_func({union, Types}) ->
+    io_lib:format("// json_enc_union_<~s>",
+                  [string:join([encode_func(Type) || Type <- Types], ",")]).
 
 enumerate(List) ->
     lists:zip(List, lists:seq(1, length(List))).
