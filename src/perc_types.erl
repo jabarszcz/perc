@@ -41,7 +41,7 @@ record_deps_from_field(Field) ->
                  sets:from_list([Name]);
              (_, Accs) ->
                  sets:union(Accs)
-         end, sets:new(), Field#record_field.type).
+         end, Field#record_field.type).
 
 %% Type reductions (simplifications)
 -spec reduce([#record_def{}], [#user_type_def{}]) -> {[#record_def{}], [#user_type_def{}]}.
@@ -53,9 +53,14 @@ reduce(Records, UserTypes) ->
     UserTypeNames = [UserType#user_type_def.name || UserType <- UserTypes],
     Substitutions = make_substitutions(UserTypeNames, UserTypesDict),
     NonReducedTypes =
-        [UserType || UserType <- UserTypes,
-                     not dict:is_key(UserType#user_type_def.name,
-                                     Substitutions)],
+        [UserType#user_type_def{
+           type=reduce_perc_type(
+                  UserType#user_type_def.type,
+                  Substitutions
+                 )}
+         || UserType <- UserTypes,
+            not dict:is_key(UserType#user_type_def.name,
+                            Substitutions)],
     Reduced = reduce_records(Records, Substitutions),
     {Reduced, NonReducedTypes}.
 
@@ -163,7 +168,7 @@ make_substitutions(UserTypes, UserTypesDict) ->
 make_substitutions([UserTypeName|UserTypeNames],
                     UserTypesDict,
                     SubstState =
-                        #subst_state{substitutions=Substitutions}) ->
+                       #subst_state{substitutions=Substitutions}) ->
     case dict:is_key(UserTypeName, Substitutions) of
         true ->
             make_substitutions(UserTypeNames, UserTypesDict, SubstState);
@@ -172,8 +177,7 @@ make_substitutions([UserTypeName|UserTypeNames],
                 reduce_and_make_subst(
                   {user_type, {UserTypeName, undefined}}, %% TODO args
                   UserTypesDict,
-                  SubstState
-                 ),
+                  SubstState),
             make_substitutions(UserTypeNames, UserTypesDict, NewState)
     end;
 make_substitutions([], _, SubstState) ->
@@ -207,19 +211,31 @@ reduce_and_make_subst(Type, UserTypeDict, SubstState) ->
                             UserTypeDict,
                             SubstStateAcc#subst_state{visited=NewVisited}
                            ),
-                      NewSubstitutions =
-                          dict:store(UserTypeName,
-                                     Substituted,
-                                     NewState#subst_state.substitutions),
-                      {Substituted, NewState#subst_state{
-                                     substitutions=NewSubstitutions
-                                    }}
+                      case contains_user_types(Substituted) of
+                          true -> {UserType, NewState};
+                          _ ->
+                              NewSubstitutions =
+                                  dict:store(
+                                    UserTypeName,
+                                    Substituted,
+                                    NewState#subst_state.substitutions
+                                   ),
+                              {Substituted, NewState#subst_state{
+                                              substitutions=NewSubstitutions
+                                             }}
+                      end
               end;
           (Else, SubstStateAcc) ->
               {Else, SubstStateAcc}
       end,
       SubstState,
       Type).
+
+contains_user_types(Type) ->
+    fold(fun
+             ({user_type, _}, _) -> true;
+             (_, List) -> lists:any(fun(X) -> X==true end, List)
+         end, Type).
 
 %% Type tree higher-order functions
 
@@ -242,13 +258,10 @@ update({tuple, _}, Types) -> {tuple, Types};
 update({union, _}, Types) -> {union, Types}.
 
 %% Fold on the perc type tree
--spec fold(fun((perc_type(), [AccType]) -> AccType),
-           AccType,
-           perc_type()) ->
-                  AccType.
-fold(Function, Acc, Type) ->
+-spec fold(fun((perc_type(), [AccType]) -> AccType), perc_type()) -> AccType.
+fold(Function, Type) ->
     apply(Function,
-          [Type, [fold(Function, Acc, Child)
+          [Type, [fold(Function, Child)
                   || Child <- children(Type)]
           ]).
 
@@ -257,7 +270,7 @@ fold(Function, Acc, Type) ->
 fmap(Function, Type) ->
     fold(fun(Type_, Children) ->
                  apply(Function, [update(Type_, Children)])
-         end, [], Type).
+         end, Type).
 
 -spec fmap_fold_postorder(
         fun((perc_type(), AccType) -> {perc_type(), AccType}),

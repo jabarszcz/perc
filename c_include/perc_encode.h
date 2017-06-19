@@ -64,12 +64,19 @@ unsigned int capacity(struct encoder *e)
 }
 
 static inline
-int json_enc_buf(struct encoder *e, char *buf, unsigned int len)
+char *get_ptr(struct encoder *e)
+{
+	return (char *) &e->bin.data[e->index];
+}
+
+static inline
+int json_enc_buf(struct encoder *e, const char *buf,
+		 unsigned int len)
 {
 	if (!ensure(e, len))
 		return 0;
 
-	memcpy(&e->bin.data[e->index], buf, len);
+	memcpy(get_ptr(e), buf, len);
 
 	e->index += len;
 	return 1;
@@ -88,12 +95,11 @@ int json_enc_integer(struct encoder *e, ERL_NIF_TERM term)
 	unsigned int cap = capacity(e);
 
 	// TODO portability with length of longs: see jiffy
-	int ret = enif_snprintf(&e->bin.data[e->index], cap, INT_FMT, val);
+	int ret = enif_snprintf(get_ptr(e), cap, INT_FMT, val);
 	if (ret >= cap) {
 		if (!ensure(e, ret+1))
 			return 0;
-		ret = enif_snprintf(&e->bin.data[e->index],
-				    ret+1, INT_FMT, val);
+		ret = enif_snprintf(get_ptr(e), ret+1, INT_FMT, val);
 	}
 
 	e->index += ret;
@@ -110,12 +116,11 @@ int json_enc_float(struct encoder *e, ERL_NIF_TERM term)
 
 	unsigned int cap = capacity(e);
 
-	int ret = enif_snprintf(&e->bin.data[e->index], cap, FLOAT_FMT, val);
+	int ret = enif_snprintf(get_ptr(e), cap, FLOAT_FMT, val);
 	if (ret >= cap) {
 		if (!ensure(e, ret+1))
 			return 0;
-		ret = enif_snprintf(&e->bin.data[e->index],
-				    ret+1, FLOAT_FMT, val);
+		ret = enif_snprintf(get_ptr(e), ret+1, FLOAT_FMT, val);
 	}
 
 	e->index += ret;
@@ -125,15 +130,18 @@ int json_enc_float(struct encoder *e, ERL_NIF_TERM term)
 static inline
 int json_enc_atom(struct encoder *e, ERL_NIF_TERM term)
 {
-	unsigned int len;
+	unsigned int len, index = e->index;
+
 	if (!enif_get_atom_length(e->env, term, &len, ERL_NIF_LATIN1))
 		return 0;
-	if (!ensure(e, len))
+	if (!ensure(e, len+1))
 		return 0;
-	int ret = enif_get_atom(e->env, term, &e->bin.data[e->index],
-				len, ERL_NIF_LATIN1);
-	if (ret == len + 1 || !ret)
+	int ret = enif_get_atom(e->env, term, get_ptr(e),
+				len+1, ERL_NIF_LATIN1);
+	if (ret != len + 1) {
+		e->index = index;
 		return 0;
+	}
 
 	e->index += len;
 	return 1;
@@ -148,7 +156,7 @@ int json_enc_binary(struct encoder *e, ERL_NIF_TERM term)
 	if (!ensure(e, bin.size + 2))
 		return 0;
 	JSON_ENC_LITERAL(e, "\"");
-	memcpy(&e->bin.data[e->index], bin.data, bin.size);
+	memcpy(get_ptr(e), bin.data, bin.size);
 	e->index += bin.size;
 	JSON_ENC_LITERAL(e, "\"");
 	return 1;
@@ -157,18 +165,21 @@ int json_enc_binary(struct encoder *e, ERL_NIF_TERM term)
 static inline
 int json_enc_string(struct encoder *e, ERL_NIF_TERM term)
 {
-	unsigned int len;
+	unsigned int len, index = e->index;
 
 	if (!enif_get_list_length(e->env, term, &len))
 		return 0;
-	if (!ensure(e, len))
+	if (!ensure(e, len+1))
 		return 0;
-	int ret = enif_get_string(e->env, term, &e->bin.data[e->index], len,
+	JSON_ENC_LITERAL(e, "\"");
+	int ret = enif_get_string(e->env, term, get_ptr(e), len+1,
 				  ERL_NIF_LATIN1); // TODO utf8
-	if (ret <= 0 || ret != len)
-		return 0;
-
 	e->index += len;
+	JSON_ENC_LITERAL(e, "\"");
+	if (ret != len+1) {
+		e->index = index;
+		return 0;
+	}
 	return 1;
 }
 
@@ -184,22 +195,103 @@ int json_enc_boolean(struct encoder *e, ERL_NIF_TERM term)
 	return 0;
 }
 
-// TODO handle more depth in lists
 static inline
-int json_enc_list(struct encoder *e, ERL_NIF_TERM term, enc_func func)
+int is_undefined(struct encoder *e, ERL_NIF_TERM term)
 {
+	return enif_is_identical(term, e->undef_atom);
+}
+
+template<enc_func encode_function>
+inline
+int enc_maybe(struct encoder *e, ERL_NIF_TERM term)
+{
+	if (!is_undefined(e, term))
+		return encode_function(e, term);
+	return JSON_ENC_LITERAL(e, "null");
+}
+
+template<enc_func encode_function>
+inline
+int json_enc_list(struct encoder *e, ERL_NIF_TERM term)
+{
+	if (!enif_is_list(e->env, term))
+		return 0;
+
+	JSON_ENC_LITERAL(e, "[");
+
 	ERL_NIF_TERM head, tail=term;
 	int first = 1;
-	JSON_ENC_LITERAL(e, "[");
 	while(enif_get_list_cell(e->env, tail, &head, &tail)) {
 		if (first)
 			first = 0;
 		else
 			JSON_ENC_LITERAL(e, ",");
-		func(e, head);
+		encode_function(e, head);
 	}
+
 	JSON_ENC_LITERAL(e, "]");
 	return 1;
+}
+
+template<int i = 0,
+	 enc_func first,
+	 enc_func ...rest>
+inline
+int json_enc_tuple_rec(struct encoder *e,
+		       const ERL_NIF_TERM *fields)
+{
+	if (i) {
+		if (!JSON_ENC_LITERAL(e, ","))
+			return 0;
+	} else {
+		if (!JSON_ENC_LITERAL(e, "["))
+			return 0;
+	}
+
+	if (!first(e, fields[i]))
+		return 0;
+
+	return json_enc_tuple_rec<i+1, rest...>(e, fields);
+}
+
+template<int i>
+inline
+int json_enc_tuple_rec(struct encoder *e,
+		       const ERL_NIF_TERM *fields)
+{
+	return JSON_ENC_LITERAL(e, "]");
+}
+
+template<enc_func ...encode_functions>
+inline
+int json_enc_tuple(struct encoder *e, ERL_NIF_TERM term)
+{
+	int arity;
+	const ERL_NIF_TERM *fields;
+	unsigned int index = e->index;
+	if (!enif_get_tuple(e->env, term, &arity, &fields))
+		return 0;
+	if (!json_enc_tuple_rec<0, encode_functions...>(e, fields)) {
+		e->index = index;
+		return 0;
+	}
+	return 1;
+}
+
+template<enc_func encode_function>
+inline
+int enc_union(struct encoder *e, ERL_NIF_TERM term)
+{
+	return encode_function(e, term);
+}
+
+
+template<enc_func encode_function, enc_func second, enc_func ...rest>
+inline
+int enc_union(struct encoder *e, ERL_NIF_TERM term)
+{
+	if (!encode_function(e, term))
+		return enc_union<second, rest...>(e, term);
 }
 
 static inline
@@ -214,11 +306,6 @@ void json_enc_end_obj(struct encoder *e)
 	JSON_ENC_LITERAL(e, "}");
 }
 
-static inline
-int is_undefined(struct encoder *e, ERL_NIF_TERM term)
-{
-	return enif_is_identical(term, e->undef_atom);
-}
 
 #define JSON_ENC_KEY(e, first, field_string) do {			\
 		if (first) {						\

@@ -29,15 +29,12 @@ generate_codecs(Filename, RecordNames) ->
         perc_types:reduce(Records, UserTypes),
     RecordDict =
         dict:from_list([{Rec#record_def.name, Rec} || Rec <- ReducedRecords]),
-    UserTypeDict =
-        dict:from_list(
-          [{Type#user_type_def.name, Type} || Type <- NonReducedTypes]
-         ),
     Deps = perc_types:get_record_deps(RecordNames, RecordDict),
     Module = #nif_module{name="generated", %% TODO
                          soname="sogenerated",
                          exported_records=RecordNames,
                          all_records=Deps,
+                         user_types=NonReducedTypes,
                          backends=[perc_json]},
     Erl = generate_erlang_module(Module),
     Ccode = perc_backend:generate_nif_source(Module, RecordDict),

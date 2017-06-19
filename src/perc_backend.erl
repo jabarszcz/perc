@@ -2,36 +2,47 @@
 
 -export([get_nif_name/3,
          get_enc_func_name/3,
+         get_utype_enc_func_name/3,
          generate_nif_source/2]).
 
 -include("perc.hrl").
 -include("perc_types.hrl").
 
 -callback name() -> string().
--callback generate_encode_function(#record_def{}) -> iolist().
--callback generate_encode_function_header(#record_def{}) -> iolist().
+-callback gen_record_enc_func(#record_def{}) -> iolist().
+-callback gen_record_enc_func_header(#record_def{}) -> iolist().
+-callback gen_usertype_enc_func(#user_type_def{}) -> iolist().
+-callback gen_usertype_enc_func_header(#user_type_def{}) -> iolist().
 
 generate_nif_source(Module, RecordMap) ->
     Include =
         "#include \"erl_nif.h\"\n"
         "#include \"perc_encode.h\"\n",
-    Signatures =
-        [ [generate_encode_function_header(Backend, Record), "\n"] ||
+    RSignatures =
+        [ [Backend:gen_record_enc_func_header(Record), "\n"] ||
             Backend <- Module#nif_module.backends,
             Record <- [ dict:fetch(RecName, RecordMap) ||
                           RecName <- Module#nif_module.all_records ]],
-    EncodeFuncs =
-        [ [generate_encode_function(Backend, Record), "\n"] ||
+    REncodeFuncs =
+        [ [Backend:gen_record_enc_func(Record), "\n"] ||
             Backend <- Module#nif_module.backends,
             Record <- [ dict:fetch(RecName, RecordMap) ||
                           RecName <- Module#nif_module.all_records ]],
+    USignatures =
+        [ [Backend:gen_usertype_enc_func_header(UserType), "\n"] ||
+            Backend <- Module#nif_module.backends,
+            UserType <- Module#nif_module.user_types ],
+    UEncodeFuncs =
+        [ [Backend:gen_usertype_enc_func(UserType), "\n"] ||
+            Backend <- Module#nif_module.backends,
+            UserType <- Module#nif_module.user_types ],
     Nifs = [ [generate_encode_nif(Backend, Record), "\n"] ||
                Backend <- Module#nif_module.backends,
                Record <- [ dict:fetch(RecName, RecordMap) ||
                              RecName <- Module#nif_module.exported_records ]],
     string:join([Include,
-                 Signatures,
-                 EncodeFuncs,
+                 RSignatures, USignatures,
+                 REncodeFuncs, UEncodeFuncs,
                  Nifs,
                  generate_nif_init(Module)],
                 "\n").
@@ -41,6 +52,9 @@ get_nif_name(Backend, Action, RecordName) ->
 
 get_enc_func_name(Backend, Action, RecordName) ->
     [Backend:name(), "_", Action, "_", RecordName].
+
+get_utype_enc_func_name(Backend, Action, UserTypeName) ->
+    [Backend:name(), "_", Action, "_utype_", UserTypeName].
 
 generate_encode_nif(Backend, Record) ->
     RecordName = Record#record_def.name,
@@ -78,9 +92,3 @@ generate_nif_init(Module) ->
             "ERL_NIF_INIT(~s, nif_funcs, NULL, NULL, NULL, NULL)~n",
             [Module#nif_module.name]),
     [NifFuncs, Init].
-
-generate_encode_function(Backend, Record) ->
-    Backend:generate_encode_function(Record).
-
-generate_encode_function_header(Backend, Record) ->
-    Backend:generate_encode_function_header(Record).
