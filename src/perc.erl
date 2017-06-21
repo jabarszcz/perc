@@ -40,7 +40,7 @@ generate_codecs(Filename, RecordNames) ->
     Ccode = perc_backend:generate_nif_source(Module, RecordDict),
     io:format("~s~n~s~n", [Erl, Ccode]),
     ok = file:write_file(io_lib:format("~s.erl", [Module#nif_module.name]), Erl),
-    ok = file:write_file(io_lib:format("~s.c", [Module#nif_module.soname]), Ccode).
+    ok = file:write_file(io_lib:format("~s.cpp", [Module#nif_module.soname]), Ccode).
 
 
 %%====================================================================
