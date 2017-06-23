@@ -34,10 +34,11 @@ generate_codecs(Filename, RecordNames) ->
                          soname="sogenerated",
                          exported_records=RecordNames,
                          all_records=Deps,
+                         record_dict=RecordDict,
                          user_types=NonReducedTypes,
                          backends=[perc_json]},
     Erl = generate_erlang_module(Module),
-    Ccode = perc_backend:generate_nif_source(Module, RecordDict),
+    Ccode = perc_backend:generate_nif_source(Module),
     io:format("~s~n~s~n", [Erl, Ccode]),
     ok = file:write_file(io_lib:format("~s.erl", [Module#nif_module.name]), Erl),
     ok = file:write_file(io_lib:format("~s.cpp", [Module#nif_module.soname]), Ccode).

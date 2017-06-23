@@ -143,15 +143,23 @@ int json_enc_end_obj(struct encoder *e)
 	return ENC_LITERAL(e, "}");
 }
 
+static inline
+int json_enc_key(struct encoder *e, int &first,
+		 const char *string, unsigned int len)
+{
+	int ret;
+	if (first) {
+		first = 0;
+		ret = ENC_LITERAL(e, "\"");
+	} else {
+		ret = ENC_LITERAL(e, ",\"");
+	}
+	return ret && enc_buf(e, string, len) && ENC_LITERAL(e, "\":");
+}
 
-#define JSON_ENC_KEY(e, first, field_string) do {			\
-		if (first) {						\
-			ENC_LITERAL(e, "\"" field_string "\":");	\
-			first = 0;					\
-		} else {						\
-			ENC_LITERAL(e, ",\"" field_string "\":");	\
-		}							\
-	} while (0)
+
+#define JSON_ENC_KEY(e, first, field_string) \
+	json_enc_key(e, first, field_string, sizeof(field_string)-1)
 
 
 #endif //_PERC_JSON_H_
