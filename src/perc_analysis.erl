@@ -1,6 +1,7 @@
 -module(perc_analysis).
 
 -define(S, erl_syntax).
+-define(T, perc_types).
 
 -include("perc_types.hrl").
 
@@ -67,53 +68,61 @@ get_record_fields(Form) ->
 type_from_typetree(Type) ->
     case ?S:type(Type) of
         type_union ->
-            {union, [type_from_typetree(Sub)
-                     || Sub <- ?S:type_union_types(Type)]};
+            ?T:make_union(
+              [type_from_typetree(Sub)
+               || Sub <- ?S:type_union_types(Type)]
+             );
         record_type ->
-            {record, ?S:atom_name(?S:record_type_name(Type))};
+            ?T:make_record_type(
+              ?S:atom_name(?S:record_type_name(Type))
+             );
         user_type_application ->
-            {user_type, {?S:atom_name(?S:user_type_application_name(Type)),
-                         ?S:user_type_application_arguments(Type)}};
+            ?T:make_user_type(
+              ?S:atom_name(?S:user_type_application_name(Type)),
+              ?S:user_type_application_arguments(Type)
+              );
         type_application ->
             case ?S:atom_value(?S:type_application_name(Type)) of
-                atom -> {basic, atom};
-                string -> {basic, string};
-                binary -> {basic, binary};
-                integer -> {basic, integer};
-                non_neg_integer -> {basic, integer};
-                pos_integer -> {basic, integer};
-                neg_integer -> {basic, integer};
-                float -> {basic, float};
-                number -> {union, [{basic, integer}, {basic, float}]};
-                boolean -> {basic, boolean};
+                atom -> ?T:make_basic(atom);
+                string -> ?T:make_basic(string);
+                binary -> ?T:make_basic(binary);
+                integer -> ?T:make_basic(integer);
+                non_neg_integer -> ?T:make_basic(integer);
+                pos_integer -> ?T:make_basic(integer);
+                neg_integer -> ?T:make_basic(integer);
+                float -> ?T:make_basic(float);
+                number -> ?T:make_union([{basic, integer}, {basic, float}]);
+                boolean -> ?T:make_basic(boolean);
                 list ->
                     case ?S:type_application_arguments(Type) of
-                        [] -> {ignored, {incomplete_type, Type}};
-                        List -> {list, type_from_typetree(hd(List))}
+                        [] -> ?T:make_ignored({incomplete_type, Type});
+                        List -> ?T:make_list(type_from_typetree(hd(List)))
                     end;
                 Else ->
-                    {ignored, {unknown_type_application, Else}}
+                    ?T:make_ignored({unknown_type_application, Else})
             end;
         list ->
-            {list, type_from_typetree(?S:list_head(Type))}; %% TODO handle [] (nil)
+            ?T:make_list(
+              type_from_typetree(?S:list_head(Type)) %% TODO handle [] (nil)
+             );
         tuple_type ->
             case ?S:tuple_type_elements(Type) of
                 any_size ->
-                    {ignored, {incomplete_type, Type}};
+                    ?T:make_ignored({incomplete_type, Type});
                 Types ->
-                    {tuple, [type_from_typetree(Sub) || Sub <- Types]}
+                    ?T:make_tuple([type_from_typetree(Sub) || Sub <- Types])
             end;
         integer ->
-            {basic, integer};
+            ?T:make_basic(integer);
         integer_range_type ->
-            {basic, integer};
+            ?T:make_basic(integer);
         atom ->
             case ?S:atom_value(Type) of
-                true -> {basic, boolean};
-                false -> {basic, boolean};
-                undefined -> {basic, undefined_atom};
-                _Else -> {basic, atom}
+                true -> ?T:make_basic(boolean);
+                false -> ?T:make_basic(boolean);
+                undefined -> ?T:make_basic(undefined_atom);
+                _Else -> ?T:make_basic(atom)
             end;
         Else ->
-            {ignored, {unknown_type_syntax, Else}}
+            ?T:make_ignored({unknown_type_syntax, Else})
     end.

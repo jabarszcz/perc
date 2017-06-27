@@ -2,9 +2,138 @@
 
 -include("perc_types.hrl").
 
--export([get_record_deps/2,
+-export([
+         get_type/1,
+         get_ignored_reason/1,
+         get_basic_type/1,
+         get_maybe_type/1,
+         get_list_type/1,
+         get_tuple_types/1,
+         get_union_types/1,
+         get_record_type_name/1,
+         get_user_type_name/1,
+         make_ignored/0,
+         make_ignored/1,
+         make_basic/1,
+         make_maybe/1,
+         make_list/1,
+         make_tuple/1,
+         make_union/1,
+         make_record_type/1,
+         make_user_type/2,
+         get_record_deps/2,
          reduce/2
         ]).
+
+-export_type([perc_type/0]).
+
+
+-opaque perc_type() :: perc_ignored()
+                     | perc_basic()
+                     | perc_maybe()
+                     | perc_list()
+                     | perc_tuple()
+                     | perc_record()
+                     | perc_user_type()
+                     | perc_union().
+
+-type perc_ignored() :: ignored
+                        | {ignored, Reason :: any()}.
+
+-type basic() :: integer
+               | float
+               | atom
+               | binary
+               | string
+               | boolean
+               | undefined_atom.
+
+-type perc_basic() :: {basic, basic()}.
+-type perc_maybe() :: {maybe, perc_type()}.
+-type perc_list() :: {list, perc_type()}.
+-type perc_tuple() :: {tuple, [perc_type()]}.
+-type perc_record() :: {record, string()}.
+-type perc_user_type() :: {user_type, {string(), [erl_syntax:syntaxtree()]}}.
+-type perc_union() :: {union, [perc_type()]}.
+
+
+% perc_type() manipulation
+
+-spec get_type(perc_type()) -> atom().
+get_type(ignored) ->
+    ignored;
+get_type({Type, _}) ->
+    Type.
+
+-spec get_ignored_reason(perc_type()) -> any().
+get_ignored_reason(ignored) ->
+    undefined;
+get_ignored_reason({ignored, Reason}) ->
+    Reason.
+
+-spec get_basic_type(perc_type()) -> atom().
+get_basic_type({basic, Type}) ->
+    Type.
+
+-spec get_maybe_type(perc_type()) -> perc_type().
+get_maybe_type({maybe, Type}) ->
+    Type.
+
+-spec get_list_type(perc_type()) -> perc_type().
+get_list_type({list, Type}) ->
+    Type.
+
+-spec get_tuple_types(perc_type()) -> [perc_type()].
+get_tuple_types({tuple, Types}) ->
+    Types.
+
+-spec get_union_types(perc_type()) -> [perc_type()].
+get_union_types({union, Types}) ->
+    Types.
+
+-spec get_record_type_name(perc_type()) -> string().
+get_record_type_name({record, Name}) ->
+    Name.
+
+-spec get_user_type_name(perc_type()) -> string().
+get_user_type_name({user_type, {Name, _}}) ->
+    Name.
+
+-spec make_ignored() -> perc_type().
+make_ignored() ->
+    ignored.
+
+-spec make_ignored(any()) -> perc_type().
+make_ignored(Reason) ->
+    {ignored, Reason}.
+
+-spec make_basic(atom()) -> perc_basic().
+make_basic(Type) ->
+    {basic, Type}.
+
+-spec make_maybe(perc_type()) -> perc_type().
+make_maybe(Type) ->
+    {maybe, Type}.
+
+-spec make_list(perc_type()) -> perc_type().
+make_list(Type) ->
+    {list, Type}.
+
+-spec make_tuple([perc_type()]) -> perc_type().
+make_tuple(Types) ->
+    {tuple, Types}.
+
+-spec make_union([perc_type()]) -> perc_type().
+make_union(Types) ->
+    {union, Types}.
+
+-spec make_record_type(string()) -> perc_type().
+make_record_type(Name) ->
+    {record, Name}.
+
+-spec make_user_type(string(), any()) -> perc_type().
+make_user_type(Name, Params) ->
+    {user_type, {Name, Params}}.
 
 %% Record dependencies
 -spec get_record_deps([string()], dict:dict(string(), #record_def{})) -> [string()].
