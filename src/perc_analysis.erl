@@ -12,11 +12,11 @@ analyse_forms(Forms) ->
     {get_user_types(Forms), get_records(Forms)}.
 
 get_records(Forms) ->
-    RecForms = forms:filter(fun is_record_def/1, Forms),
+    RecForms = lists:filter(fun is_record_def/1, Forms),
     [record_from_form(RecForm) || RecForm <- RecForms ].
 
 get_user_types(Forms) ->
-    UserTypeForms = forms:filter(fun is_user_type_def/1, Forms),
+    UserTypeForms = lists:filter(fun is_user_type_def/1, Forms),
     [user_type_from_form(Form) || Form <- UserTypeForms].
 
 is_record_def(Form) ->

@@ -138,4 +138,4 @@ generate_erlang_module(Module = #nif_module{}) ->
                    ),
     Forms = ?S:revert_forms(
                [ModuleAttr, ExportAttrs, OnloadAttr, Init | Funcs]),
-    forms:from_abstract(Forms).
+    erl_prettypr:format(?S:form_list(Forms)).
