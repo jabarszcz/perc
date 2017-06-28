@@ -1,6 +1,8 @@
 -module(perc_backend).
 
--export([get_nif_name/3,
+-export([backends/0,
+         backend_from_name/1,
+         get_nif_name/3,
          generate_nif_source/1,
          id_from_name/1]).
 
@@ -10,6 +12,16 @@
 -callback name() -> string().
 -callback gen_record_enc_func(#record_def{}) -> iolist().
 -callback gen_usertype_enc_func(#user_type_def{}) -> iolist().
+
+backends() ->
+    [perc_json].
+
+backend_from_name(Name) ->
+    hd(lists:filter(
+         fun(Backend) ->
+                 Backend:name() == Name
+         end,
+         backends())).
 
 generate_nif_source(Module) ->
     Backends = Module#nif_module.backends,

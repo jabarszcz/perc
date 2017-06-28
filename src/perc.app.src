@@ -6,6 +6,7 @@
    [kernel,
     stdlib,
     forms,
+    getopt,
     erlydtl
    ]},
   {env,[]},
