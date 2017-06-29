@@ -8,6 +8,7 @@
 %%====================================================================
 
 %% escript Entry point
+-spec main([string()]) -> no_return().
 main(Args) ->
     io:format("Args: ~p~n", [Args]),
     erlang:halt(0).
