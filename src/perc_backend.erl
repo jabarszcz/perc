@@ -13,9 +13,11 @@
 -callback gen_record_enc_func(#record_def{}) -> iolist().
 -callback gen_usertype_enc_func(#user_type_def{}) -> iolist().
 
+-spec backends() -> [atom()].
 backends() ->
     [perc_json].
 
+-spec backend_from_name(string()) -> atom().
 backend_from_name(Name) ->
     hd(lists:filter(
          fun(Backend) ->
@@ -23,6 +25,7 @@ backend_from_name(Name) ->
          end,
          backends())).
 
+-spec generate_nif_source(#nif_module{}) -> iolist().
 generate_nif_source(Module) ->
     Backends = Module#nif_module.backends,
     UserTypes = [UType#user_type_def.name
@@ -50,8 +53,10 @@ functions(Backend, Module) ->
                        || Record <- [dict:fetch(RecName, Module#nif_module.record_dict)
                                      || RecName <- Module#nif_module.all_records]]]).
 
+-spec get_nif_name(atom(), string(), string()) -> iolist().
 get_nif_name(Backend, Action, RecordName) ->
     [Backend:name(), "_", Action, "_", RecordName, "_nif"].
 
+-spec id_from_name(string()) -> string().
 id_from_name(Str) ->
     string:to_upper(Str).

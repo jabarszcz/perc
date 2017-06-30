@@ -11,6 +11,7 @@
 name() ->
     "json".
 
+-spec gen_record_enc_func(#record_def{}) -> iolist().
 gen_record_enc_func(Record) ->
     RecordType = perc_types:make_record_type(Record#record_def.name),
     Dict = [{name_template, template(RecordType)},
@@ -21,6 +22,7 @@ gen_record_enc_func(Record) ->
     {ok, Source} = json_encode_record_dtl:render(Dict),
     Source.
 
+-spec gen_usertype_enc_func(#user_type_def{}) -> iolist().
 gen_usertype_enc_func(#user_type_def{name=Name, type=Type}) ->
     UserType = perc_types:make_user_type(Name, undefined),
     Dict = [{name_template, template(UserType)},
