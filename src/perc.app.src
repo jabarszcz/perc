@@ -4,10 +4,16 @@
   {registered, []},
   {applications,
    [kernel,
-    stdlib
+    stdlib,
+    getopt
    ]},
   {env,[]},
-  {modules, []},
+  {modules,
+   [
+    perc,
+    perc_parse,
+    perc_types
+   ]},
 
   {maintainers, []},
   {licenses, ["MIT"]},
