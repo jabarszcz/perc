@@ -78,7 +78,8 @@ main(Args) ->
 -spec generate_codecs([option()]) -> ok | no_return().
 generate_codecs(Options) ->
     Gen = gen_from_options(Options),
-    io:format("~p~n", [Gen]).
+    Reduced = perc_reduce:reduce(Gen),
+    io:format("~p~n", [Reduced]).
 
 -spec get_gen_erl_out(generator()) -> string().
 get_gen_erl_out(Gen) ->

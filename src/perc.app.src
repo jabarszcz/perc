@@ -11,7 +11,9 @@
   {modules,
    [
     perc,
+    perc_digraph,
     perc_parse,
+    perc_reduce,
     perc_types
    ]},
 
