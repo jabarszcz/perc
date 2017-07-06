@@ -10,6 +10,7 @@
     get_gen_exported/1,
     get_gen_record_defs/1,
     get_gen_usertype_defs/1,
+    get_gen_backends/1,
     set_gen_defs/2
   ]).
 
@@ -34,7 +35,8 @@
     inputs :: [string()],
     exported :: [perc_types:perc_type()],
     record_defs :: [perc_types:record_def()],
-    usertype_defs :: [perc_types:usertype_def()]
+    usertype_defs :: [perc_types:usertype_def()],
+    backends :: [atom()]
  }).
 
 -opaque generator() :: #generator{}.
@@ -57,7 +59,9 @@ main(Args) ->
          {record, $r, "record", string,
           "The records for which we want an encoding function"},
          {usertype, $u, "usertype", string,
-          "The user types for which we want an encoding function"}
+          "The user types for which we want an encoding function"},
+         {backend, $b, "backend", {string, "json"},
+          "The codec backends (json, etc.)"}
         ],
     case getopt:parse(OptSpec, Args) of
         {ok, {Options, []}} ->
@@ -79,7 +83,16 @@ main(Args) ->
 generate_codecs(Options) ->
     Gen = gen_from_options(Options),
     Reduced = perc_reduce:reduce(Gen),
-    io:format("~p~n", [Reduced]).
+    Erl = perc_erl_gen:generate(Reduced),
+    Ccode = perc_backend:generate_nif_source(Reduced),
+    ok = file:write_file(
+           io_lib:format("~s.erl", [Reduced#generator.erl_out]),
+           Erl
+          ),
+    ok = file:write_file(
+           io_lib:format("~s.cpp", [Reduced#generator.cpp_out]),
+           Ccode
+          ).
 
 -spec get_gen_erl_out(generator()) -> string().
 get_gen_erl_out(Gen) ->
@@ -105,6 +118,10 @@ get_gen_record_defs(Gen) ->
 get_gen_usertype_defs(Gen) ->
     Gen#generator.usertype_defs.
 
+-spec get_gen_backends(generator()) -> [atom()].
+get_gen_backends(Gen) ->
+    Gen#generator.backends.
+
 -spec set_gen_defs(generator(), perc_parse:defs()) -> generator().
 set_gen_defs(Gen, {RecordDefs, UserTypeDefs}) ->
     Gen#generator{record_defs=RecordDefs, usertype_defs=UserTypeDefs}.
@@ -117,6 +134,7 @@ gen_from_options(Opts) ->
     Inputs = proplists:get_all_values(input_file, Opts),
     RecordNames = proplists:get_all_values(record, Opts),
     UserTypeNames = proplists:get_all_values(usertype, Opts),
+    Backends = lists:usort(proplists:get_all_values(backend, Opts)),
     Records =
         [perc_types:make_record(Name) || Name <- RecordNames],
     UserTypes =
@@ -130,5 +148,6 @@ gen_from_options(Opts) ->
        inputs=Inputs,
        exported=Exported,
        record_defs=RecordDefs,
-       usertype_defs=UserTypeDefs
+       usertype_defs=UserTypeDefs,
+       backends=[perc_backend:backend_from_name(B) || B <- Backends]
       }.

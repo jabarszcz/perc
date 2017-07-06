@@ -5,13 +5,16 @@
   {applications,
    [kernel,
     stdlib,
-    getopt
+    getopt,
+    erlydtl
    ]},
   {env,[]},
   {modules,
    [
     perc,
+    perc_backend,
     perc_digraph,
+    perc_json,
     perc_parse,
     perc_reduce,
     perc_types

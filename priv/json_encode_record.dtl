@@ -1,0 +1,42 @@
+{% autoescape off %}
+template <>
+int json_encoder<{{ name_template }}>::encode(
+    struct encoder *e,
+    const ERL_NIF_TERM term)
+{% templatetag openbrace %}
+    unsigned int index = e->index;
+    int first=1, arity;
+    const ERL_NIF_TERM *fields;
+    if (!enif_get_tuple(e->env, term, &arity, &fields))
+        goto fail;
+    if (!enif_is_identical(enif_make_atom(e->env, "{{ name }}"), fields[0]))
+        goto fail;
+    if (!json_enc_begin_obj(e))
+        goto fail;
+{% for field in fields %}
+{% if field.ignored %}
+    // Field {{ field.index }} ({{ field.name }}) ignored;
+    {% for line in field.ignored_reason_lines %}
+    // {{ line }}{% endfor %}
+{% elif field.maybe %}
+    if (!is_undefined(e, fields[{{ field.index }}])) {% templatetag openbrace %}
+        if (!JSON_ENC_KEY(e, first, "{{ field.name }}"))
+            goto fail;
+        if (!json_encode<{{ field.type_template }}>(e, fields[{{ field.index }}]))
+            goto fail;
+    {% templatetag closebrace %}
+{% else %}
+    if (!JSON_ENC_KEY(e, first, "{{ field.name }}"))
+        goto fail;
+    if (!json_encode<{{ field.type_template }}>(e, fields[{{ field.index }}]))
+        goto fail;
+{% endif %}
+{% endfor %}
+    if (!json_enc_end_obj(e))
+        goto fail;
+    return 1;
+fail:
+    e->index = index;
+    return 0;
+{% templatetag closebrace %}
+{% endautoescape %}
