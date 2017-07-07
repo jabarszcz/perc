@@ -61,7 +61,9 @@ main(Args) ->
          {usertype, $u, "usertype", string,
           "The user types for which we want an encoding function"},
          {backend, $b, "backend", {string, "json"},
-          "The codec backends (json, etc.)"}
+          "The codec backends (json, etc.)"},
+         {graph, $g, "graph", boolean,
+          "Save the type graph"}
         ],
     case getopt:parse(OptSpec, Args) of
         {ok, {Options, []}} ->
@@ -92,7 +94,12 @@ generate_codecs(Options) ->
     ok = file:write_file(
            io_lib:format("~s.cpp", [Reduced#generator.cpp_out]),
            Ccode
-          ).
+          ),
+    case proplists:get_bool(graph, Options) of
+        true -> save_graph(Reduced, "type_graph.png", "png");
+        _ -> ok
+    end,
+    ok.
 
 -spec get_gen_erl_out(generator()) -> string().
 get_gen_erl_out(Gen) ->
@@ -151,3 +158,11 @@ gen_from_options(Opts) ->
        usertype_defs=UserTypeDefs,
        backends=[perc_backend:backend_from_name(B) || B <- Backends]
       }.
+
+save_graph(Gen, Filename, Format) ->
+    RecordDefs = perc:get_gen_record_defs(Gen),
+    UserTypeDefs = perc:get_gen_usertype_defs(Gen),
+    Graph = perc_digraph:make(RecordDefs, UserTypeDefs),
+    Ret = perc_digraph:save(Graph, Filename, Format),
+    perc_digraph:delete(Graph),
+    Ret.

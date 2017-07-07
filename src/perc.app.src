@@ -5,8 +5,9 @@
   {applications,
    [kernel,
     stdlib,
-    getopt,
-    erlydtl
+    digraph_viz,
+    erlydtl,
+    getopt
    ]},
   {env,[]},
   {modules,

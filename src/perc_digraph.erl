@@ -5,7 +5,8 @@
     make/2,
     delete/1,
     reduce_ignored/2,
-    compute_deps/2
+    compute_deps/2,
+    save/3
   ]).
 
 -export_type([
@@ -72,6 +73,10 @@ compute_deps(State, Exported) ->
     ExportedVertices = [dict:fetch(E, Dict) || E <- Exported],
     Reachable = digraph_utils:reachable(ExportedVertices, Graph),
     [T || T <- get_labels(Graph, Reachable), is_reference_type(T)].
+
+-spec save(state(), string(), string()) -> ok | {error, any()}.
+save(State, Filename, Format) ->
+    digraph_viz:export(State#state.graph, [], Filename, Format).
 
 %%====================================================================
 %% Internal functions
