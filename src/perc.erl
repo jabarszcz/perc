@@ -11,7 +11,8 @@
     get_gen_record_defs/1,
     get_gen_usertype_defs/1,
     get_gen_backends/1,
-    set_gen_defs/2
+    set_gen_defs/2,
+    get_optspec/0
   ]).
 
 -export_type([
@@ -48,23 +49,7 @@
 %% escript Entry point
 -spec main([string()]) -> no_return().
 main(Args) ->
-    OptSpec =
-        [
-         {erl_out, $e, "erl-out", {string, "generated"},
-          "The generated erlang module name"},
-         {cpp_out, $c, "cpp-out", {string, "generated"},
-          "The generated cpp file name"},
-         {input_file, $i , "in", string,
-          "An erlang file containing type and record definitions"},
-         {record, $r, "record", string,
-          "The records for which we want an encoding function"},
-         {usertype, $u, "usertype", string,
-          "The user types for which we want an encoding function"},
-         {backend, $b, "backend", {string, "json"},
-          "The codec backends (json, etc.)"},
-         {graph, $g, "graph", boolean,
-          "Save the type graph"}
-        ],
+    OptSpec = get_optspec(),
     case getopt:parse(OptSpec, Args) of
         {ok, {Options, []}} ->
             Res = generate_codecs(Options),
@@ -132,6 +117,29 @@ get_gen_backends(Gen) ->
 -spec set_gen_defs(generator(), perc_parse:defs()) -> generator().
 set_gen_defs(Gen, {RecordDefs, UserTypeDefs}) ->
     Gen#generator{record_defs=RecordDefs, usertype_defs=UserTypeDefs}.
+
+-spec get_optspec() -> [{atom(),
+                         integer(),
+                         string(),
+                         atom() | tuple(),
+                         string()}].
+get_optspec() ->
+    [
+     {erl_out, $e, "erl-out", {string, "generated"},
+      "The generated erlang module name"},
+     {cpp_out, $c, "cpp-out", {string, "generated"},
+      "The generated cpp file name"},
+     {input_file, $i , "in", string,
+      "An erlang file containing type and record definitions"},
+     {record, $r, "record", string,
+      "The records for which we want an encoding function"},
+     {usertype, $u, "usertype", string,
+      "The user types for which we want an encoding function"},
+     {backend, $b, "backend", {string, "json"},
+      "The codec backends (json, etc.)"},
+     {graph, $g, "graph", boolean,
+      "Save the type graph"}
+    ].
 
 %%====================================================================
 %% Internal functions
