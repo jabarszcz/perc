@@ -26,7 +26,7 @@ generate(Generator) ->
                 erl_syntax:application(
                   erl_syntax:atom(erlang),
                   erl_syntax:atom(load_nif),
-                  [erl_syntax:string("./" ++ perc:get_gen_cpp_out(Generator)),
+                  [erl_syntax:string(perc:get_gen_sopath(Generator)),
                    erl_syntax:integer(0)]
                  )
                )]
@@ -70,7 +70,6 @@ generate(Generator) ->
               erl_syntax:integer(erl_syntax:function_arity(Init))]
             )]
          ),
-    Forms =
-        erl_syntax:revert_forms(
-          [ModuleAttr, ExportAttrs, OnloadAttr, Init | Funcs]),
-    erl_prettypr:format(erl_syntax:form_list(Forms)).
+    erl_syntax:revert_forms(
+      [ModuleAttr, ExportAttrs, OnloadAttr, Init | Funcs]
+     ).

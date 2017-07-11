@@ -5,7 +5,8 @@
     main/1,
     generate_codecs/1,
     get_gen_erl_out/1,
-    get_gen_cpp_out/1,
+    get_gen_sopath/1,
+    get_gen_appname/1,
     get_gen_inputs/1,
     get_gen_exported/1,
     get_gen_record_defs/1,
@@ -26,18 +27,27 @@
 
 -type option() :: {erl_out, string()}
                 | {cpp_out, string()}
-                | {input_file, string()}
+                | {appname, string()}
+                | {in, string()}
+                | {in_dir, string()}
+                | {cpp_dir, string()}
+                | {erl_dir, string()}
                 | {record, string()}
-                | {backend, string()}.
+                | {backend, string()}
+                | {cpp_flags, string()}
+                | compile | {compile, boolean()}
+                | beam | {beam, boolean()}
+                | load | {load, boolean()}
+                | so | {so, boolean()}
+                | graph | {graph, boolean()}.
 
 -record(generator, {
-    erl_out :: string(),
-    cpp_out :: string(),
     inputs :: [string()],
     exported :: [perc_types:perc_type()],
     record_defs :: [perc_types:record_def()],
     usertype_defs :: [perc_types:usertype_def()],
-    backends :: [atom()]
+    backends :: [atom()],
+    opts :: [option()]
  }).
 
 -opaque generator() :: #generator{}.
@@ -70,16 +80,8 @@ main(Args) ->
 generate_codecs(Options) ->
     Gen = gen_from_options(Options),
     Reduced = perc_reduce:reduce(Gen),
-    Erl = perc_erl_gen:generate(Reduced),
-    Ccode = perc_backend:generate_nif_source(Reduced),
-    ok = file:write_file(
-           io_lib:format("~s.erl", [Reduced#generator.erl_out]),
-           Erl
-          ),
-    ok = file:write_file(
-           io_lib:format("~s.cpp", [Reduced#generator.cpp_out]),
-           Ccode
-          ),
+    generate_nif(Reduced),
+    generate_erl(Reduced),
     case proplists:get_bool(graph, Options) of
         true -> save_graph(Reduced, "type_graph.png", "png");
         _ -> ok
@@ -88,11 +90,26 @@ generate_codecs(Options) ->
 
 -spec get_gen_erl_out(generator()) -> string().
 get_gen_erl_out(Gen) ->
-    Gen#generator.erl_out.
+    proplists:get_value(erl_out, Gen#generator.opts, "generated").
 
--spec get_gen_cpp_out(generator()) -> string().
-get_gen_cpp_out(Gen) ->
-    Gen#generator.cpp_out.
+-spec get_gen_sopath(generator()) -> string().
+get_gen_sopath(Gen) ->
+    Opts = Gen#generator.opts,
+    AppName = perc:get_gen_appname(Gen),
+    Dir = proplists:get_value(cpp_dir, Opts, "./priv"),
+    SoName = proplists:get_value(cpp_out, Opts, "generated"), % without ext
+    case AppName of
+        undefined ->
+            filename:join(Dir, SoName);
+        _ ->
+            AppAtom = list_to_atom(AppName),
+            Root = code:lib_dir(AppAtom),
+            filename:join([Root, Dir, SoName])
+    end.
+
+-spec get_gen_appname(generator()) -> string() | undefined.
+get_gen_appname(Gen) ->
+    proplists:get_value(appname, Gen#generator.opts).
 
 -spec get_gen_inputs(generator()) -> [string()].
 get_gen_inputs(Gen) ->
@@ -128,15 +145,29 @@ get_optspec() ->
      {erl_out, $e, "erl-out", {string, "generated"},
       "The generated erlang module name"},
      {cpp_out, $c, "cpp-out", {string, "generated"},
-      "The generated cpp file name"},
-     {input_file, $i , "in", string,
+      "The generated cpp file name (without ext.)"},
+     {in, $i , "in", string,
       "An erlang file containing type and record definitions"},
+     {in_dir, undefined, "in-dir", {string, "."},
+      "The directory where the input files are"},
+     {cpp_dir, undefined, "cpp-dir", {string, "."},
+      "Where to put the cpp/so generated nif"},
+     {erl_dir, undefined, "erl-dir", {string, "."},
+      "Where to put the generated erlang module"},
      {record, $r, "record", string,
       "The records for which we want an encoding function"},
      {usertype, $u, "usertype", string,
       "The user types for which we want an encoding function"},
      {backend, $b, "backend", {string, "json"},
       "The codec backends (json, etc.)"},
+     {cpp_flags, undefined, "cpp-flags", string,
+      "Flags to pass to the c++ compiler if compiling"},
+     {compile, $C, "compile", boolean,
+      "Compile both the generated module and nif"},
+     {beam, undefined, "beam", boolean,
+      "Compile the erlang module"},
+     {so, undefined, "so", boolean,
+      "Compile the generated nif to a shared library"},
      {graph, $g, "graph", boolean,
       "Save the type graph"}
     ].
@@ -146,10 +177,14 @@ get_optspec() ->
 %%====================================================================
 
 gen_from_options(Opts) ->
-    Inputs = proplists:get_all_values(input_file, Opts),
+    Inputs = proplists:get_all_values(in, Opts),
     RecordNames = proplists:get_all_values(record, Opts),
     UserTypeNames = proplists:get_all_values(usertype, Opts),
-    Backends = lists:usort(proplists:get_all_values(backend, Opts)),
+    Backends =
+        case lists:usort(proplists:get_all_values(backend, Opts)) of
+            [] -> ["json"];
+            List -> List
+        end,
     Records =
         [perc_types:make_record(Name) || Name <- RecordNames],
     UserTypes =
@@ -158,13 +193,12 @@ gen_from_options(Opts) ->
     {RecordDefs, UserTypeDefs} =
         perc_parse:read_all(Inputs),
     #generator{
-       erl_out=proplists:get_value(erl_out, Opts, "generated"),
-       cpp_out=proplists:get_value(cpp_out, Opts, "generated"),
        inputs=Inputs,
        exported=Exported,
        record_defs=RecordDefs,
        usertype_defs=UserTypeDefs,
-       backends=[perc_backend:backend_from_name(B) || B <- Backends]
+       backends=[perc_backend:backend_from_name(B) || B <- Backends],
+       opts=Opts
       }.
 
 save_graph(Gen, Filename, Format) ->
@@ -174,3 +208,80 @@ save_graph(Gen, Filename, Format) ->
     Ret = perc_digraph:save(Graph, Filename, Format),
     perc_digraph:delete(Graph),
     Ret.
+
+-spec generate_nif(generator()) -> ok | no_return().
+generate_nif(Gen) ->
+    Opts = Gen#generator.opts,
+    CppStr = perc_backend:generate_nif_source(Gen),
+    SoPath = perc:get_gen_sopath(Gen),
+    ok = filelib:ensure_dir(SoPath),
+    Load = proplists:get_bool(load, Opts),
+    Compile =
+        proplists:get_bool(compile, Opts) or
+        proplists:get_bool(so, Opts) or
+        Load,
+    case Compile of
+        true ->
+            TempFile = lib:nonl(os:cmd("mktemp --suffix '.cpp'")),
+            SoFile = io_lib:format("~s.so", [SoPath]),
+            ErlNifIncludeDir = filename:join(code:root_dir(), "usr/include"),
+            CIncludeDir = code:priv_dir(perc),
+            Flags = proplists:get_value(cpp_flags, Opts, ""),
+            Cmd = io_lib:format(
+                    "g++ -fvisibility=hidden -nodefaultlibs "
+                    "-o ~s -fpic -shared ~s -I ~s -I ~s ~s",
+                    [SoFile, TempFile, ErlNifIncludeDir, CIncludeDir, Flags]
+                   ),
+            ok = file:write_file(TempFile, CppStr),
+            io:format("~s~n", [Cmd]), %% TODO remove
+            case os:cmd(Cmd) of
+                [] ->
+                    ok;
+                Error ->
+                    BinError = unicode:characters_to_binary(Error),
+                    erlang:error({cpp_compiler_output, BinError})
+            end;
+        false ->
+            File = io_lib:format("~s.cpp", [SoPath]),
+            ok = file:write_file(File, CppStr)
+    end.
+
+-spec generate_erl(generator()) -> ok | no_return().
+generate_erl(Gen) ->
+    ErlForms = perc_erl_gen:generate(Gen),
+    ErlDir = proplists:get_value(erl_dir, Gen#generator.opts, "."),
+    filelib:ensure_dir(ErlDir),
+    Load = proplists:get_bool(load, Gen#generator.opts),
+    Compile =
+        proplists:get_bool(compile, Gen#generator.opts) or
+        proplists:get_bool(beam, Gen#generator.opts) or
+        Load,
+    case Compile of
+        true ->
+            {Module, Binary} =
+                case compile:forms(ErlForms) of
+                    {ok, ModuleName, Bin} when is_binary(Bin) ->
+                        {ModuleName, Bin};
+                    {ok, ModuleName, Bin, _Warn} when is_binary(Bin) ->
+                        {ModuleName, Bin};
+                    Error ->
+                        erlang:error({not_a_binary, Error})
+                end,
+            File = filename:join(
+                     ErlDir,
+                     io_lib:format("~s.beam", [Module])
+                    ),
+            ok = file:write_file(File, Binary),
+            case Load of
+                true ->
+                    {module, _} = code:load_abs(filename:join(ErlDir, Module)),
+                    ok;
+                _ ->
+                    ok
+            end;
+        false ->
+            Output = erl_prettypr:format(erl_syntax:form_list(ErlForms)),
+            ModuleName = get_gen_erl_out(Gen),
+            File = filename:join(ErlDir, io_lib:format("~s.erl", [ModuleName])),
+            ok = file:write_file(File, Output)
+    end.
