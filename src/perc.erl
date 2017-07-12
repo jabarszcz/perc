@@ -79,14 +79,19 @@ main(Args) ->
 -spec generate_codecs([option()]) -> ok | no_return().
 generate_codecs(Options) ->
     Gen = gen_from_options(Options),
-    Reduced = perc_reduce:reduce(Gen),
-    generate_nif(Reduced),
-    generate_erl(Reduced),
-    case proplists:get_bool(graph, Options) of
-        true -> save_graph(Reduced, "type_graph.png", "png");
-        _ -> ok
-    end,
-    ok.
+    case Gen#generator.exported of
+        [] ->
+            ok;
+        _ ->
+            Reduced = perc_reduce:reduce(Gen),
+            generate_nif(Reduced),
+            generate_erl(Reduced),
+            case proplists:get_bool(graph, Options) of
+                true -> save_graph(Reduced, "type_graph.png", "png");
+                _ -> ok
+            end,
+            ok
+    end.
 
 -spec get_gen_erl_out(generator()) -> string().
 get_gen_erl_out(Gen) ->
