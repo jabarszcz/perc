@@ -6,11 +6,14 @@
     delete/1,
     reduce_ignored/2,
     compute_deps/2,
+    make_substitutions/2,
+    reduce_usertypes/2,
     save/3
   ]).
 
 -export_type([
-    state/0
+    state/0,
+    substitutions/0
   ]).
 
 %%====================================================================
@@ -27,6 +30,9 @@
          }).
 
 -opaque state() :: #state{}.
+
+-type substitutions() :: dict:dict(perc_types:perc_type(),
+                                   perc_types:perc_type()).
 
 %%====================================================================
 %% API functions
@@ -74,6 +80,39 @@ compute_deps(State, Exported) ->
     Reachable = digraph_utils:reachable(ExportedVertices, Graph),
     [T || T <- get_labels(Graph, Reachable), is_reference_type(T)].
 
+-spec make_substitutions(
+        state(),
+        dict:dict(
+          perc_types:perc_type(),
+          perc_types:usertype_def()
+         )
+       ) -> substitutions().
+make_substitutions(State, UserTypeDict) ->
+    PostOrderVertices = digraph_utils:postorder(State#state.norec_graph),
+    PostOrder = get_labels(State#state.graph, PostOrderVertices),
+    Substitutable =
+        [U || U <- PostOrder,
+              is_usertype(U),
+              is_subtstitutable(State, U)],
+    make_substitutions(UserTypeDict, Substitutable, dict:new()).
+
+-spec reduce_usertypes(
+        perc_types:perc_type(),
+        substitutions()
+       ) -> perc_types:perc_type().
+reduce_usertypes(Type, Substitutions) ->
+    perc_types:fmap(
+      fun(Type_) ->
+              case {perc_types:get_type(Type_),
+                    dict:find(Type_, Substitutions)} of
+                  {usertype, {ok, Value}} ->
+                      Value;
+                  _ ->
+                      Type_
+              end
+      end,
+      Type).
+
 -spec save(state(), string(), string()) -> ok | {error, any()}.
 save(State, Filename, Format) ->
     digraph_viz:export(State#state.graph, [], Filename, Format).
@@ -81,6 +120,31 @@ save(State, Filename, Format) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
+
+make_substitutions(UserTypeDict, [T|Ts], Subs) ->
+    Def = perc_types:get_usertype_def_type(dict:fetch(T, UserTypeDict)),
+    Reduced = reduce_usertypes(Def, Subs),
+    NewSubs = dict:store(T, Reduced, Subs),
+    make_substitutions(UserTypeDict, Ts, NewSubs);
+make_substitutions(_, [], Subs) ->
+    Subs.
+
+is_usertype(Type) ->
+    case perc_types:get_type(Type) of
+        usertype ->
+            true;
+        _ ->
+            false
+    end.
+
+is_subtstitutable(State, UserType) ->
+    Vertex = dict:fetch(UserType, State#state.dict),
+    case digraph:get_cycle(State#state.graph, Vertex) of
+        false ->
+            true;
+        _ ->
+            false
+    end.
 
 -spec add_norec_graph(state()) -> state().
 add_norec_graph(State) ->
