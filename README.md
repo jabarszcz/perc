@@ -5,7 +5,16 @@ An erlang record codec generator. `perc` uses erlang record
 definitions and user type definitions to generate efficient record
 encoding NIFs.
 
+A small benchmark comparing it to [jiffy][jiffy] can be found
+[here][perc_vs_jiffy].
+
+There is also a [rebar3 plugin][plugin] to build the codecs at build time.
+
 PERC stands for *Producer of Erlang Record Codecs*.
+
+[jiffy]: https://github.com/davisp/jiffy
+[perc_vs_jiffy]: https://github.com/jabarszcz/perc_vs_jiffy
+[plugin]: https://github.com/jabarszcz/rebar3_perc_plugin
 
 Deps
 ----
