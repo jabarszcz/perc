@@ -15,6 +15,8 @@
     set_gen_defs/2,
     make_defs/2,
     merge_defs/1,
+    get_defs_records/1,
+    get_defs_usertypes/1,
     get_optspec/0
   ]).
 
@@ -171,6 +173,14 @@ merge_defs(DefsList) ->
     UserTypeDefs = lists:append(UserTypeDefsLists),
     #defs{records=RecordDefs,
           usertypes=UserTypeDefs}.
+
+-spec get_defs_records(defs()) -> [perc_types:record_def()].
+get_defs_records(Defs) ->
+    Defs#defs.records.
+
+-spec get_defs_usertypes(defs()) -> [perc_types:usertype_def()].
+get_defs_usertypes(Defs) ->
+    Defs#defs.usertypes.
 
 -spec get_optspec() -> [{atom(),
                          integer(),
