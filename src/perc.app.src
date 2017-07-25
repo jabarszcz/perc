@@ -15,6 +15,7 @@
     perc,
     perc_backend,
     perc_digraph,
+    perc_prettypr,
     perc_json,
     perc_parse_erl,
     perc_reduce,

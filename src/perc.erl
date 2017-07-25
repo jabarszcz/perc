@@ -44,7 +44,8 @@
                 | beam | {beam, boolean()}
                 | load | {load, boolean()}
                 | so | {so, boolean()}
-                | graph | {graph, boolean()}.
+                | graph | {graph, boolean()}
+                | {schema, string()}.
 
 -record(defs, {
           records = [] :: [perc_types:record_def()],
@@ -100,6 +101,12 @@ generate_codecs(Options) ->
             case proplists:get_bool(graph, Options) of
                 true -> save_graph(Reduced, "type_graph.png", "png");
                 _ -> ok
+            end,
+            case proplists:get_value(schema, Options) of
+                undefined -> ok;
+                Filename ->
+                    Defs = Reduced#generator.defs,
+                    file:write_file(Filename, perc_prettypr:format(Defs))
             end,
             ok
     end.
@@ -216,7 +223,9 @@ get_optspec() ->
      {so, undefined, "so", boolean,
       "Compile the generated nif to a shared library"},
      {graph, $g, "graph", boolean,
-      "Save the type graph"}
+      "Save the type graph"},
+     {schema, $s, "schema", string,
+      "Output the schema to a file"}
     ].
 
 %%====================================================================
