@@ -1,4 +1,4 @@
--module(perc_parse).
+-module(perc_parse_erl).
 
 %% API exports
 -export([

@@ -227,7 +227,7 @@ gen_from_options(Opts) ->
     UserTypes =
         [perc_types:make_usertype(Name) || Name <- UserTypeNames],
     Exported = Records ++ UserTypes,
-    Defs = perc_parse:read_all(Inputs),
+    Defs = perc_parse_erl:read_all(Inputs),
     #generator{
        inputs=Inputs,
        exported=Exported,
