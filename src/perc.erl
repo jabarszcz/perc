@@ -13,11 +13,14 @@
     get_gen_usertype_defs/1,
     get_gen_backends/1,
     set_gen_defs/2,
+    make_defs/2,
+    merge_defs/1,
     get_optspec/0
   ]).
 
 -export_type([
     option/0,
+    defs/0,
     generator/0
   ]).
 
@@ -41,11 +44,17 @@
                 | so | {so, boolean()}
                 | graph | {graph, boolean()}.
 
+-record(defs, {
+          records = [] :: [perc_types:record_def()],
+          usertypes = [] :: [perc_types:usertype_def()]
+         }).
+
+-opaque defs() :: #defs{}.
+
 -record(generator, {
     inputs :: [string()],
     exported :: [perc_types:perc_type()],
-    record_defs :: [perc_types:record_def()],
-    usertype_defs :: [perc_types:usertype_def()],
+    defs :: defs(),
     backends :: [atom()],
     opts :: [option()]
  }).
@@ -126,19 +135,42 @@ get_gen_exported(Gen) ->
 
 -spec get_gen_record_defs(generator()) -> [perc_types:record_def()].
 get_gen_record_defs(Gen) ->
-    Gen#generator.record_defs.
+    Gen#generator.defs#defs.records.
 
 -spec get_gen_usertype_defs(generator()) -> [perc_types:usertype_def()].
 get_gen_usertype_defs(Gen) ->
-    Gen#generator.usertype_defs.
+    Gen#generator.defs#defs.usertypes.
 
 -spec get_gen_backends(generator()) -> [atom()].
 get_gen_backends(Gen) ->
     Gen#generator.backends.
 
--spec set_gen_defs(generator(), perc_parse:defs()) -> generator().
-set_gen_defs(Gen, {RecordDefs, UserTypeDefs}) ->
-    Gen#generator{record_defs=RecordDefs, usertype_defs=UserTypeDefs}.
+-spec set_gen_defs(generator(), defs()) -> generator().
+set_gen_defs(Gen, Defs) ->
+    Gen#generator{defs=Defs}.
+
+-spec make_defs(
+        [perc_types:record_defs()],
+        [perc_types:usertype_defs()]
+       ) -> defs().
+make_defs(RecordDefs, UserTypeDefs) ->
+    #defs{
+       records=RecordDefs,
+       usertypes=UserTypeDefs
+      }.
+
+-spec merge_defs([defs()]) -> defs().
+merge_defs(DefsList) ->
+    {RecordDefsLists, UserTypeDefsLists} =
+        lists:unzip(
+          [{RecDefs, UserDefs}
+           || #defs{records=RecDefs,
+                    usertypes=UserDefs} <- DefsList]
+         ),
+    RecordDefs = lists:append(RecordDefsLists),
+    UserTypeDefs = lists:append(UserTypeDefsLists),
+    #defs{records=RecordDefs,
+          usertypes=UserTypeDefs}.
 
 -spec get_optspec() -> [{atom(),
                          integer(),
@@ -195,13 +227,11 @@ gen_from_options(Opts) ->
     UserTypes =
         [perc_types:make_usertype(Name) || Name <- UserTypeNames],
     Exported = Records ++ UserTypes,
-    {RecordDefs, UserTypeDefs} =
-        perc_parse:read_all(Inputs),
+    Defs = perc_parse:read_all(Inputs),
     #generator{
        inputs=Inputs,
        exported=Exported,
-       record_defs=RecordDefs,
-       usertype_defs=UserTypeDefs,
+       defs=Defs,
        backends=[perc_backend:backend_from_name(B) || B <- Backends],
        opts=Opts
       }.

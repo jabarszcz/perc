@@ -5,25 +5,16 @@
     read/1,
     read_all/1
   ]).
--export_type([
-    defs/0
-  ]).
-
-%%====================================================================
-% API Types
-%%====================================================================
-
--type defs() :: {[perc_types:record_def()], [perc_types:usertype_def()]}.
 
 %%====================================================================
 %% API functions
 %%====================================================================
 
--spec analyse_forms([erl_parse:abstract_form()]) -> defs().
+-spec analyse_forms([erl_parse:abstract_form()]) -> perc:defs().
 analyse_forms(Forms) ->
-    {get_record_defs(Forms), get_usertype_defs(Forms)}.
+    perc:make_defs(get_record_defs(Forms), get_usertype_defs(Forms)).
 
--spec read(string()) -> defs() | no_return().
+-spec read(string()) -> perc:defs() | no_return().
 read(Filename) ->
     Forms =
         case epp:parse_file(Filename, []) of
@@ -36,13 +27,9 @@ read(Filename) ->
         end,
     analyse_forms(Forms).
 
--spec read_all([string()]) -> defs() | no_return().
+-spec read_all([string()]) -> perc:defs() | no_return().
 read_all(Filenames) ->
-    {RecordDefsLists, UserTypeDefsLists} =
-        lists:unzip([read(Filename) || Filename <- Filenames]),
-    RecordDefs = lists:append(RecordDefsLists),
-    UserTypeDefs = lists:append(UserTypeDefsLists),
-    {RecordDefs, UserTypeDefs}.
+    perc:merge_defs([read(Filename) || Filename <- Filenames]).
 
 %%====================================================================
 %% Internal functions
