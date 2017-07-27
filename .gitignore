@@ -15,3 +15,6 @@ logs
 _build
 .idea
 rebar3.crashdump
+
+src/perc_scanner.erl
+src/perc_parser.erl

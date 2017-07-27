@@ -246,7 +246,20 @@ gen_from_options(Opts) ->
     UserTypes =
         [perc_types:make_usertype(Name) || Name <- UserTypeNames],
     Exported = Records ++ UserTypes,
-    Defs = perc_parse_erl:read_all(Inputs),
+    {PercInputs, ErlInputs} =
+        lists:partition(
+          fun(In) ->
+                  filename:extension(In) == ".perc"
+          end,
+          Inputs),
+    DefsA = perc_parse_erl:read_all(ErlInputs),
+    DefsB =
+        [begin
+             {ok, Tokens, _} = perc_scanner:file(F),
+             {ok, Parsed} = perc_parser:parse(Tokens),
+             Parsed
+         end || F <- PercInputs],
+    Defs = merge_defs([DefsA | DefsB]),
     #generator{
        inputs=Inputs,
        exported=Exported,

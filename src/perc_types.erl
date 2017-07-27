@@ -21,6 +21,8 @@
     get_record_field_type/1,
     get_usertype_def_name/1,
     get_usertype_def_type/1,
+    is_record_def/1,
+    is_usertype_def/1,
     make_ignored/0,
     make_ignored/1,
     make_basic/1,
@@ -168,6 +170,18 @@ get_usertype_def_name(UserType) ->
 get_usertype_def_type(UserType) ->
     UserType#usertype_def.type.
 
+-spec is_record_def(any()) -> boolean().
+is_record_def(#record_def{} = _) ->
+    true;
+is_record_def(_) ->
+    false.
+
+-spec is_usertype_def(any()) -> boolean().
+is_usertype_def(#usertype_def{} = _) ->
+    true;
+is_usertype_def(_) ->
+    false.
+
 -spec make_ignored() -> perc_type().
 make_ignored() ->
     ignored.
@@ -208,7 +222,7 @@ make_usertype(Name) ->
 make_record_def(Name, Fields) ->
     #record_def{name = Name, fields = Fields}.
 
--spec make_record_field(string(), perc_type()) -> record_field().
+-spec make_record_field(undefined | string(), perc_type()) -> record_field().
 make_record_field(Name, Type) ->
     #record_field{name = Name, type = Type}.
 
