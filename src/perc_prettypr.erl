@@ -43,7 +43,10 @@ format_record_fields(RecordDef) ->
 format_perc_type(Type) ->
     case perc_types:get_type(Type) of
         ignored ->
-            "ignored";
+            io_lib:format(
+              "ignored /* ~p */",
+              [perc_types:get_ignored_reason(Type)]
+              );
         basic ->
             atom_to_list(perc_types:get_basic_type(Type));
         maybe ->
@@ -66,8 +69,8 @@ format_perc_type(Type) ->
              );
         record ->
             RecordName = perc_types:get_record_name(Type),
-            io_lib:format("r<~s>", [RecordName]);
+            io_lib:format("record<~s>", [RecordName]);
         usertype ->
             UserTypeName = perc_types:get_usertype_name(Type),
-            io_lib:format("u<~s>", [UserTypeName])
+            io_lib:format("usertype<~s>", [UserTypeName])
     end.

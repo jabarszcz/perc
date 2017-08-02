@@ -4,14 +4,15 @@ REC = record
 UTYPE = usertype
 WS = [\f\n\r\s\t\v]
 NL = \r?\n
-SIMPLE_ATOM = [a-z][0-9a-zA-Z_]*
+SIMPLE_ID = [a-zA-Z][0-9a-zA-Z_]*
 STRING_SQUOT = \'([^\'\\]|\\[^\\]|\\\\|\\\')*\'
 STRING_DQUOT = \"([^\"\\]|\\[^\\]|\\\\|\\\")*\"
-ID = {SIMPLE_ATOM}|{STRING_SQUOT}
+ID = {SIMPLE_ID}|{STRING_SQUOT}
 
 Rules.
 
 \%[^\r\n]*{NL}+			: skip_token. %% erlang style comments
+/\*([^*]|\*[^/])*\*/		: skip_token. %% c++ style block comment
 {WS}+				: skip_token. %% ignore whitespace
 {REC}				: {token, {record, TokenLine}}.
 {UTYPE}				: {token, {usertype, TokenLine}}.
@@ -23,8 +24,7 @@ _				: {token, {wildcard, TokenLine}}.
 \}				: {token, {'}', TokenLine}}.
 \(				: {token, {'(', TokenLine}}.
 \)				: {token, {')', TokenLine}}.
-u<				: {token, {'u<', TokenLine}}.
-r<				: {token, {'r<', TokenLine}}.
+<				: {token, {'<', TokenLine}}.
 >				: {token, {'>', TokenLine}}.
 ,				: {token, {',', TokenLine}}.
 

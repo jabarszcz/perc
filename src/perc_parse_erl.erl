@@ -54,24 +54,36 @@ analyse_record_form(Form) ->
 analyse_usertype_form(Form) ->
     %% erl_syntax does not recognise type attributes well;
     %% Use the abstract form directly
-    {attribute, _, type, {TypeNameAtom, TypeTree, _Params}} = Form,
+    {attribute, _, _, {TypeNameAtom, TypeTree, _Params}} = Form,
     perc_types:make_usertype_def(
       atom_to_list(TypeNameAtom),
       analyse_typetree(TypeTree)
      ).
 
 analyse_record_field(Field) ->
-    Name =
-        erl_syntax:atom_name(
-           erl_syntax:record_field_name(
-              erl_syntax:typed_record_field_body(Field) %% TODO handle untyped
+    case erl_syntax:type(Field) of
+        typed_record_field ->
+            Name =
+                erl_syntax:atom_name(
+                  erl_syntax:record_field_name(
+                    erl_syntax:typed_record_field_body(Field)
+                   )
+                 ),
+            Type =
+                analyse_typetree(
+                  erl_syntax:typed_record_field_type(Field)
+                 ),
+            perc_types:make_record_field(Name, Type);
+        record_field ->
+            Name =
+                erl_syntax:atom_name(
+                  erl_syntax:record_field_name(Field)
+                 ),
+            perc_types:make_record_field(
+              Name,
+              perc_types:make_ignored(untyped_field)
              )
-          ),
-    Type =
-        analyse_typetree(
-          erl_syntax:typed_record_field_type(Field)
-         ),
-    perc_types:make_record_field(Name, Type).
+    end.
 
 %% TODO support the full list :
 %% http://erlang.org/doc/reference_manual/typespec.html
@@ -163,6 +175,7 @@ is_record_form(Form) ->
 is_usertype_form(Form) ->
     try erl_syntax:atom_literal(erl_syntax:attribute_name(Form)) of
         "type" -> true;
+        "opaque" -> true;
         _ -> false
     catch
         error:{badarg, _} -> false

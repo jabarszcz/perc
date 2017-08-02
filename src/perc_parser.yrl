@@ -27,8 +27,7 @@ def_sep
 '}'
 '('
 ')'
-'r<'
-'u<'
+'<'
 '>'
 ','.
 
@@ -92,10 +91,10 @@ applicable ->
     usertype_ref : '$1'.
 
 usertype_ref ->
-    'u<' id '>' : {{usertype, value_of('$2')}, line_of('$1')}.
+    usertype '<' id '>' : {{usertype, value_of('$3')}, line_of('$1')}.
 
 record_ref ->
-    'r<' id '>' : {{record, value_of('$2')}, line_of('$1')}.
+    record '<' id '>' : {{record, value_of('$3')}, line_of('$1')}.
 
 args ->
     '$empty' : [].
