@@ -2,6 +2,7 @@ Definitions.
 
 REC = record
 UTYPE = usertype
+FN = fn
 WS = [\f\n\r\s\t\v]
 NL = \r?\n
 SIMPLE_ID = [a-zA-Z][0-9a-zA-Z_]*
@@ -16,6 +17,7 @@ Rules.
 {WS}+				: skip_token. %% ignore whitespace
 {REC}				: {token, {record, TokenLine}}.
 {UTYPE}				: {token, {usertype, TokenLine}}.
+{FN}				: {token, {function, TokenLine}}.
 {ID}				: {token, {id, TokenLine, TokenChars}}.
 _				: {token, {wildcard, TokenLine}}.
 \.				: {token, {def_sep, TokenLine}}.

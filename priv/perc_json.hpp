@@ -142,6 +142,13 @@ struct json_encoder<Union<Ts...>> {
 	}
 };
 
+template<trans_func enc, trans_func dec, typename T>
+struct json_encoder<Function<enc, dec, T>> {
+        static int encode(struct encoder *e, ERL_NIF_TERM term) {
+                return json_encoder<T>::encode(e, enc(e->env, term));
+        }
+};
+
 template<typename T>
 static
 int json_encode(struct encoder *e, ERL_NIF_TERM term) {

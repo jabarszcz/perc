@@ -12,6 +12,7 @@
     get_gen_record_defs/1,
     get_gen_usertype_defs/1,
     get_gen_backends/1,
+    get_gen_includes/1,
     set_gen_defs/2,
     make_defs/2,
     merge_defs/1,
@@ -154,6 +155,10 @@ get_gen_usertype_defs(Gen) ->
 get_gen_backends(Gen) ->
     Gen#generator.backends.
 
+-spec get_gen_includes(generator()) -> [string()].
+get_gen_includes(Gen) ->
+    proplists:get_all_values(include, Gen#generator.opts).
+
 -spec set_gen_defs(generator(), defs()) -> generator().
 set_gen_defs(Gen, Defs) ->
     Gen#generator{defs=Defs}.
@@ -225,7 +230,9 @@ get_optspec() ->
      {graph, $g, "graph", boolean,
       "Save the type graph"},
      {schema, $s, "schema", string,
-      "Output the schema to a file"}
+      "Output the schema to a file"},
+     {include, undefined, "include", string,
+      ".h file to include in the generated native code"}
     ].
 
 %%====================================================================

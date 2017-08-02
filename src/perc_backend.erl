@@ -37,6 +37,7 @@ generate_nif_source(Generator) ->
     Backends = perc:get_gen_backends(Generator),
     Records = perc:get_gen_record_defs(Generator),
     UserTypes = perc:get_gen_usertype_defs(Generator),
+    Includes = perc:get_gen_includes(Generator),
     NifFuncs =
         [[{name, get_nif_function_name(Backend, "encode", Type)},
           {type_template, template(Type)},
@@ -55,7 +56,8 @@ generate_nif_source(Generator) ->
          || Backend <- Backends],
     {ok, Source} =
         nif_source_dtl:render([{module, ModuleDict},
-                               {backends, BackendsDict}]),
+                               {backends, BackendsDict},
+                               {includes, Includes}]),
     Source.
 
 -spec get_nif_function_name(
@@ -93,7 +95,16 @@ template(Type) ->
         record ->
             io_lib:format("Record<~s>", [type_to_id(Type)]);
         usertype ->
-            io_lib:format("UserType<~s>", [type_to_id(Type)])
+            io_lib:format("UserType<~s>", [type_to_id(Type)]);
+        function ->
+            TypeArg = perc_types:get_function_arg(Type),
+            {Enc, Dec} = perc_types:get_function_names(Type),
+            EncStr = function_expr(Enc),
+            DecStr = function_expr(Dec),
+            io_lib:format(
+              "Function<~s,~s,~s>",
+              [EncStr, DecStr, template(TypeArg)]
+             )
     end.
 
 -spec type_to_id(perc_types:perc_type()) -> iolist().
@@ -126,6 +137,12 @@ functions(Backend, Generator) ->
        [Backend:gen_record_enc_func(Record)
         || Record <- Records]]
      ).
+
+function_expr(Name) ->
+    case Name of
+        undefined -> "(trans_func)NULL";
+        _ -> Name
+    end.
 
 capitalize([H|T]) ->
     [string:to_upper(H)|T].

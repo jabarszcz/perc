@@ -2,6 +2,8 @@
 #include "erl_nif.h"
 {% for backend in backends %}#include "perc_{{ backend.name }}.hpp"
 {% endfor %}
+{% for include in includes %}#include "{{ include }}"
+{% endfor %}
 
 enum Id : unsigned int {% templatetag openbrace %}
 {% for record in module.records %}    {{ record }},

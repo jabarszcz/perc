@@ -5,6 +5,8 @@ def_list
 def
 record_def
 usertype_def
+function_ref
+func_name
 fields
 field
 type
@@ -19,6 +21,7 @@ Terminals
 
 record
 usertype
+function
 id
 wildcard
 def_sep
@@ -89,12 +92,22 @@ applicable ->
     id : '$1'.
 applicable ->
     usertype_ref : '$1'.
+applicable ->
+    function_ref : '$1'.
 
 usertype_ref ->
     usertype '<' id '>' : {{usertype, value_of('$3')}, line_of('$1')}.
 
 record_ref ->
     record '<' id '>' : {{record, value_of('$3')}, line_of('$1')}.
+
+function_ref ->
+    function '<' func_name ',' func_name '>' : {{function, {'$3', '$5'}}, line_of('$1')}.
+
+func_name ->
+    wildcard : undefined.
+func_name ->
+    id : value_of('$1').
 
 args ->
     '$empty' : [].
@@ -128,6 +141,8 @@ make_type(IdTuple, Args) ->
             perc_types:make_record(Name);
         {{usertype, Name}, _} ->
             perc_types:make_usertype(Name); %% TODO Args
+        {{function, NamePair}, [Arg]} ->
+            perc_types:make_function(NamePair, Arg);
         {Basic, []} ->
             BasicSet = sets:from_list([integer, float, atom, binary,
                                        string, boolean, undefined_atom]),

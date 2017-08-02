@@ -72,5 +72,17 @@ format_perc_type(Type) ->
             io_lib:format("record<~s>", [RecordName]);
         usertype ->
             UserTypeName = perc_types:get_usertype_name(Type),
-            io_lib:format("usertype<~s>", [UserTypeName])
+            io_lib:format("usertype<~s>", [UserTypeName]);
+        function ->
+            TypeArg = perc_types:get_function_arg(Type),
+            TypeArgStr = format_perc_type(TypeArg),
+            {Enc, Dec} = perc_types:get_function_names(Type),
+            EncStr = function_to_id(Enc),
+            DecStr = function_to_id(Dec),
+            io_lib:format("fn<~s,~s>(~s)", [EncStr, DecStr, TypeArgStr])
     end.
+
+function_to_id(undefined) ->
+    "_";
+function_to_id(Name) ->
+    Name.

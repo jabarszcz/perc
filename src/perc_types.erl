@@ -15,6 +15,8 @@
     get_union_types/1,
     get_record_name/1,
     get_usertype_name/1,
+    get_function_names/1,
+    get_function_arg/1,
     get_record_def_name/1,
     get_record_def_fields/1,
     get_record_field_name/1,
@@ -32,6 +34,7 @@
     make_union/1,
     make_record/1,
     make_usertype/1,
+    make_function/2,
     make_record_def/2,
     make_record_field/2,
     make_usertype_def/2,
@@ -58,7 +61,8 @@
                      | perc_tuple()
                      | perc_record()
                      | perc_usertype()
-                     | perc_union().
+                     | perc_union()
+                     | perc_function().
 
 -type perc_ignored() :: ignored
                         | {ignored, Reason :: any()}.
@@ -78,6 +82,7 @@
 -type perc_record() :: {record, string()}.
 -type perc_usertype() :: {usertype, {string(), [erl_syntax:syntaxtree()]}}.
 -type perc_union() :: {union, [perc_type()]}.
+-type perc_function() :: {function, {string(), string()}, perc_type()}.
 
 -record(record_field, {
           name :: undefined | string(),
@@ -110,6 +115,8 @@
 get_type(ignored) ->
     ignored;
 get_type({Type, _}) ->
+    Type;
+get_type({Type, _, _}) ->
     Type.
 
 -spec get_ignored_reason(perc_type()) -> any().
@@ -145,6 +152,16 @@ get_record_name({record, Name}) ->
 -spec get_usertype_name(perc_type()) -> string().
 get_usertype_name({usertype, Name}) ->
     Name.
+
+-spec get_function_names(perc_type()) ->
+                                {undefined | string(),
+                                 undefined | string()}.
+get_function_names({function, {Enc, Dec}, _}) ->
+    {Enc, Dec}.
+
+-spec get_function_arg(perc_type()) -> perc_type().
+get_function_arg({function, {_, _}, Arg}) ->
+    Arg.
 
 -spec get_record_def_name(record_def()) -> string().
 get_record_def_name(RecordDef) ->
@@ -218,6 +235,10 @@ make_record(Name) ->
 make_usertype(Name) ->
     {usertype, Name}.
 
+-spec make_function({string(), string()}, perc_type()) -> perc_type().
+make_function({Enc, Dec}, Arg) ->
+    {function, {Enc, Dec}, Arg}.
+
 -spec make_record_def(string(), [record_field()]) -> record_def().
 make_record_def(Name, Fields) ->
     #record_def{name = Name, fields = Fields}.
@@ -286,6 +307,7 @@ children({record, _}) -> [];
 children({usertype, _}) -> [];
 children({maybe, Type}) -> [Type];
 children({list, Type}) -> [Type];
+children({function, _, Type}) -> [Type];
 children({tuple, Types}) -> Types;
 children({union, Types}) -> Types.
 
@@ -297,5 +319,6 @@ children({union, Types}) -> Types.
 update(Type, []) -> Type;
 update({maybe, _}, [Type]) -> {maybe, Type};
 update({list, _}, [Type]) -> {list, Type};
+update({function, Names, _}, [Type]) -> {function, Names, Type};
 update({tuple, _}, Types) -> {tuple, Types};
 update({union, _}, Types) -> {union, Types}.

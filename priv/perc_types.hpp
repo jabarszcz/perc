@@ -1,6 +1,8 @@
 #ifndef _PERC_TYPES_HPP_
 #define _PERC_TYPES_HPP_
 
+#include "erl_nif.h"
+
 enum Id : unsigned int;
 
 class Integer;
@@ -27,5 +29,10 @@ class Record;
 
 template <Id id>
 class UserType;
+
+typedef ERL_NIF_TERM (*trans_func)(ErlNifEnv *, ERL_NIF_TERM);
+
+template <trans_func enc, trans_func dec, typename T>
+class Function;
 
 #endif //_PERC_TYPES_HPP_
