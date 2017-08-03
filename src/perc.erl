@@ -303,7 +303,7 @@ generate_nif(Gen) ->
             Flags = proplists:get_value(cpp_flags, Opts, ""),
             Cmd = io_lib:format(
                     "g++ -fvisibility=hidden -nodefaultlibs "
-                    "-o ~s -fpic -shared ~s -I ~s -I ~s ~s",
+                    "-o ~s -fpic -shared ~s -I ~s -I ~s -I . ~s",
                     [SoFile, TempFile, ErlNifIncludeDir, CIncludeDir, Flags]
                    ),
             ok = file:write_file(TempFile, CppStr),
