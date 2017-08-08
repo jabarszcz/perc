@@ -7,6 +7,12 @@
 #define FLOAT_FMT "%.15g"
 
 static inline
+int json_enc_undefined(struct encoder *e, ERL_NIF_TERM term)
+{
+        return ENC_LITERAL(e, "null");
+}
+
+static inline
 int json_enc_integer(struct encoder *e, ERL_NIF_TERM term)
 {
 	ErlNifSInt64 val;
@@ -208,5 +214,32 @@ int json_enc_key(struct encoder *e, int &first,
 #define JSON_ENC_KEY(e, first, field_string) \
 	json_enc_key(e, first, field_string, sizeof(field_string)-1)
 
+// Filters
+struct data {
+        ErlNifEnv *env;
+        ERL_NIF_TERM undef;
+        ERL_NIF_TERM empty_list;
+} data;
+
+static inline
+int load(ErlNifEnv * env, void** priv_data, ERL_NIF_TERM load_info)
+{
+        data.env = enif_alloc_env();
+        data.undef = enif_make_atom(data.env, "undefined");
+        data.empty_list = enif_make_list(data.env, 0);
+        return 0;
+}
+
+static inline
+int no_undef(ErlNifEnv *env, ERL_NIF_TERM term)
+{
+        return !enif_is_identical(data.undef, term);
+}
+
+static inline
+int no_empty_list(ErlNifEnv *env, ERL_NIF_TERM term)
+{
+        return !enif_is_identical(data.empty_list, term);
+}
 
 #endif //_PERC_JSON_H_

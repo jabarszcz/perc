@@ -26,6 +26,8 @@ _				: {token, {wildcard, TokenLine}}.
 \}				: {token, {'}', TokenLine}}.
 \(				: {token, {'(', TokenLine}}.
 \)				: {token, {')', TokenLine}}.
+\[				: {token, {'[', TokenLine}}.
+\]				: {token, {']', TokenLine}}.
 <				: {token, {'<', TokenLine}}.
 >				: {token, {'>', TokenLine}}.
 ,				: {token, {',', TokenLine}}.

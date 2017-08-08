@@ -128,7 +128,7 @@ analyse_atom(Type) ->
     case erl_syntax:atom_value(Type) of
         true -> perc_types:make_basic(boolean);
         false -> perc_types:make_basic(boolean);
-        undefined -> perc_types:make_basic(undefined_atom);
+        undefined -> perc_types:make_undefined_atom();
         _Else -> perc_types:make_basic(atom)
     end.
 

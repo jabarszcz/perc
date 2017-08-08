@@ -9,7 +9,6 @@
     get_type/1,
     get_ignored_reason/1,
     get_basic_type/1,
-    get_maybe_type/1,
     get_list_type/1,
     get_tuple_types/1,
     get_union_types/1,
@@ -21,14 +20,15 @@
     get_record_def_fields/1,
     get_record_field_name/1,
     get_record_field_type/1,
+    get_record_field_filters/1,
     get_usertype_def_name/1,
     get_usertype_def_type/1,
     is_record_def/1,
     is_usertype_def/1,
     make_ignored/0,
     make_ignored/1,
+    make_undefined_atom/0,
     make_basic/1,
-    make_maybe/1,
     make_list/1,
     make_tuple/1,
     make_union/1,
@@ -37,9 +37,11 @@
     make_function/2,
     make_record_def/2,
     make_record_field/2,
+    make_record_field/3,
     make_usertype_def/2,
     set_record_def_fields/2,
     set_record_field_type/2,
+    set_record_field_filters/2,
     set_usertype_def_type/2
   ]).
 
@@ -55,8 +57,8 @@
 %%====================================================================
 
 -opaque perc_type() :: perc_ignored()
+                     | undefined_atom
                      | perc_basic()
-                     | perc_maybe()
                      | perc_list()
                      | perc_tuple()
                      | perc_record()
@@ -72,21 +74,23 @@
                | atom
                | binary
                | string
-               | boolean
-               | undefined_atom.
+               | boolean.
 
 -type perc_basic() :: {basic, basic()}.
--type perc_maybe() :: {maybe, perc_type()}.
 -type perc_list() :: {list, perc_type()}.
 -type perc_tuple() :: {tuple, [perc_type()]}.
 -type perc_record() :: {record, string()}.
 -type perc_usertype() :: {usertype, {string(), [erl_syntax:syntaxtree()]}}.
 -type perc_union() :: {union, [perc_type()]}.
--type perc_function() :: {function, {string(), string()}, perc_type()}.
+-type perc_function() :: {function,
+                          {undefined | string(),
+                           undefined | string()},
+                          perc_type()}.
 
 -record(record_field, {
           name :: undefined | string(),
-          type :: undefined | perc_types:perc_type()
+          type :: undefined | perc_types:perc_type(),
+          filters = [] :: [perc_filter:filter()]
          }).
 
 -opaque record_field() :: #record_field{}.
@@ -114,6 +118,8 @@
 -spec get_type(perc_type()) -> atom().
 get_type(ignored) ->
     ignored;
+get_type(undefined_atom) ->
+    undefined_atom;
 get_type({Type, _}) ->
     Type;
 get_type({Type, _, _}) ->
@@ -127,10 +133,6 @@ get_ignored_reason({ignored, Reason}) ->
 
 -spec get_basic_type(perc_type()) -> atom().
 get_basic_type({basic, Type}) ->
-    Type.
-
--spec get_maybe_type(perc_type()) -> perc_type().
-get_maybe_type({maybe, Type}) ->
     Type.
 
 -spec get_list_type(perc_type()) -> perc_type().
@@ -179,6 +181,10 @@ get_record_field_name(Field) ->
 get_record_field_type(Field) ->
     Field#record_field.type.
 
+-spec get_record_field_filters(record_field()) -> [perc_filter:filter()].
+get_record_field_filters(Field) ->
+    Field#record_field.filters.
+
 -spec get_usertype_def_name(usertype_def()) -> string().
 get_usertype_def_name(UserType) ->
     UserType#usertype_def.name.
@@ -207,13 +213,13 @@ make_ignored() ->
 make_ignored(Reason) ->
     {ignored, Reason}.
 
+-spec make_undefined_atom() -> perc_type().
+make_undefined_atom() ->
+    undefined_atom.
+
 -spec make_basic(atom()) -> perc_basic().
 make_basic(Type) ->
     {basic, Type}.
-
--spec make_maybe(perc_type()) -> perc_type().
-make_maybe(Type) ->
-    {maybe, Type}.
 
 -spec make_list(perc_type()) -> perc_type().
 make_list(Type) ->
@@ -247,6 +253,14 @@ make_record_def(Name, Fields) ->
 make_record_field(Name, Type) ->
     #record_field{name = Name, type = Type}.
 
+-spec make_record_field(
+        undefined | string(),
+        perc_type(),
+        [perc_filter:filter()]
+       ) -> record_field().
+make_record_field(Name, Type, Filters) ->
+    #record_field{name = Name, type = Type, filters=Filters}.
+
 -spec make_usertype_def(string(), perc_type()) -> usertype_def().
 make_usertype_def(Name, Type) ->
     #usertype_def{name = Name, type = Type}.
@@ -260,6 +274,11 @@ set_record_def_fields(RecordDef, Fields) ->
                                    record_field().
 set_record_field_type(RecordField, Type) ->
     RecordField#record_field{type=Type}.
+
+-spec set_record_field_filters(record_field(), [perc_filter:filter()]) ->
+                                   record_field().
+set_record_field_filters(RecordField, Filters) ->
+    RecordField#record_field{filters=Filters}.
 
 -spec set_usertype_def_type(usertype_def(), perc_types:perc_type()) ->
                                    usertype_def().
@@ -302,10 +321,10 @@ fold_fmap_postorder(Function, Acc, Type) ->
 -spec children(perc_type()) -> [perc_type()].
 children(ignored) -> [];
 children({ignored, _}) -> [];
+children(undefined_atom) -> [];
 children({basic, _}) -> [];
 children({record, _}) -> [];
 children({usertype, _}) -> [];
-children({maybe, Type}) -> [Type];
 children({list, Type}) -> [Type];
 children({function, _, Type}) -> [Type];
 children({tuple, Types}) -> Types;
@@ -316,9 +335,8 @@ children({union, Types}) -> Types.
 %%====================================================================
 
 -spec update(perc_type(), [perc_type()]) -> perc_type().
-update(Type, []) -> Type;
-update({maybe, _}, [Type]) -> {maybe, Type};
 update({list, _}, [Type]) -> {list, Type};
 update({function, Names, _}, [Type]) -> {function, Names, Type};
 update({tuple, _}, Types) -> {tuple, Types};
-update({union, _}, Types) -> {union, Types}.
+update({union, _}, Types) -> {union, Types};
+update(Type, []) -> Type.

@@ -17,6 +17,7 @@
     make_defs/2,
     merge_defs/1,
     get_defs_records/1,
+    set_defs_records/2,
     get_defs_usertypes/1,
     get_optspec/0
   ]).
@@ -190,6 +191,10 @@ merge_defs(DefsList) ->
 get_defs_records(Defs) ->
     Defs#defs.records.
 
+-spec set_defs_records(defs(), [perc_types:record_def()]) -> defs().
+set_defs_records(Defs, Records) ->
+    Defs#defs{records=Records}.
+
 -spec get_defs_usertypes(defs()) -> [perc_types:usertype_def()].
 get_defs_usertypes(Defs) ->
     Defs#defs.usertypes.
@@ -260,13 +265,14 @@ gen_from_options(Opts) ->
           end,
           Inputs),
     DefsA = perc_parse_erl:read_all(ErlInputs),
+    DefsAFilters = perc_filter:defs_add_automatic_filters(DefsA),
     DefsB =
         [begin
              {ok, Tokens, _} = perc_scanner:file(F),
              {ok, Parsed} = perc_parser:parse(Tokens),
              Parsed
          end || F <- PercInputs],
-    Defs = merge_defs([DefsA | DefsB]),
+    Defs = merge_defs([DefsAFilters | DefsB]),
     #generator{
        inputs=Inputs,
        exported=Exported,

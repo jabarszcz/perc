@@ -46,27 +46,34 @@ gen_usertype_enc_func(UserTypeDef) ->
 
 field_dict(Field, Index) ->
     Type = perc_types:get_record_field_type(Field),
-    case perc_types:get_type(Type) of
-        ignored ->
-            ReasonLines =
-                case perc_types:get_ignored_reason(Type) of
-                    none -> "";
-                    Else ->
-                        List = io_lib:format("~p", [Else]),
-                        Str = lists:flatten(List),
-                        string:tokens(Str, "\n")
-                end,
-            [{ignored, true},
-             {ignored_reason_lines, ReasonLines}];
-        maybe ->
-            [{maybe, true},
-             {type_template,
-              perc_backend:template(perc_types:get_maybe_type(Type))}];
-        _ ->
-            [{type_template, perc_backend:template(Type)}]
-    end ++
-        [{name, perc_types:get_record_field_name(Field)},
-         {index, Index}].
+    TypeVals =
+        case perc_types:get_type(Type) of
+            ignored ->
+                ReasonLines =
+                    case perc_types:get_ignored_reason(Type) of
+                        none -> "";
+                        Else ->
+                            List = io_lib:format("~p", [Else]),
+                            Str = lists:flatten(List),
+                            string:tokens(Str, "\n")
+                    end,
+                [{ignored, true},
+                 {ignored_reason_lines, ReasonLines}];
+            _ ->
+                [{type_template, perc_backend:template(Type)}]
+        end,
+    FilterVals =
+        case perc_types:get_record_field_filters(Field) of
+            [] -> [];
+            Filters ->
+                [{filters, [perc_filter:get_name(F)
+                            || F <- Filters]}]
+        end,
+    lists:append(
+      [TypeVals, FilterVals,
+       [{name, perc_types:get_record_field_name(Field)},
+        {index, Index}]
+      ]).
 
 enumerate(List) ->
     lists:zip(List, lists:seq(1, length(List))).

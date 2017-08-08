@@ -9,6 +9,9 @@ function_ref
 func_name
 fields
 field
+field_body
+filter_list
+filter
 type
 type_application
 applicable
@@ -30,6 +33,8 @@ def_sep
 '}'
 '('
 ')'
+'['
+']'
 '<'
 '>'
 ','.
@@ -70,13 +75,27 @@ fields ->
     '$empty' : [].
 
 field ->
-    wildcard :
-        {perc_types:make_record_field(undefined, perc_types:make_ignored()),
-         line_of('$1')}.
+    field_body :
+        {make_field('$1'), line_of('$1')}.
 field ->
-    id '::' type :
-        {perc_types:make_record_field(value_of('$1'), value_of('$3')),
+    field_body '[' filter_list ']' : {make_field('$1', '$3'), line_of('$1')}.
+
+field_body ->
+    wildcard :
+        {{undefined, perc_types:make_ignored()},
          line_of('$1')}.
+field_body ->
+    id '::' type :
+        {{value_of('$1'), value_of('$3')},
+         line_of('$1')}.
+
+filter_list ->
+    filter ',' filter_list : ['$1' | '$3'].
+filter_list ->
+    filter : ['$1'].
+
+filter ->
+    id : perc_filter:make(value_of('$1')).
 
 type ->
     id : {make_type('$1'), line_of('$1')}.
@@ -102,7 +121,8 @@ record_ref ->
     record '<' id '>' : {{record, value_of('$3')}, line_of('$1')}.
 
 function_ref ->
-    function '<' func_name ',' func_name '>' : {{function, {'$3', '$5'}}, line_of('$1')}.
+    function '<' func_name ',' func_name '>' :
+        {{function, {'$3', '$5'}}, line_of('$1')}.
 
 func_name ->
     wildcard : undefined.
@@ -129,8 +149,8 @@ make_type(IdTuple, Args) ->
     case {Id, Args} of
         {"ignored", _} ->
             perc_types:make_ignored();
-        {"maybe", [Arg]} ->
-            perc_types:make_maybe(Arg);
+        {"undefined", []} ->
+            perc_types:make_undefined_atom();
         {"list", [Arg]} ->
             perc_types:make_list(Arg);
         {"tuple", _} ->
@@ -144,8 +164,8 @@ make_type(IdTuple, Args) ->
         {{function, NamePair}, [Arg]} ->
             perc_types:make_function(NamePair, Arg);
         {Basic, []} ->
-            BasicSet = sets:from_list([integer, float, atom, binary,
-                                       string, boolean, undefined_atom]),
+            BasicSet = sets:from_list([integer, float, atom,
+                                       binary, string, boolean]),
             Atom = list_to_atom(Basic),
             case sets:is_element(Atom, BasicSet) of
                 true ->
@@ -160,6 +180,14 @@ make_type(IdTuple, Args) ->
             Message = io_lib:format(MessageFmt, [Id, length(Args)]),
             return_error(Line, lists:flatten(Message))
     end.
+
+make_field(Ftuple) ->
+    {Name, Type} = value_of(Ftuple),
+    perc_types:make_record_field(Name, Type).
+
+make_field(Ftuple, Filters) ->
+    {Name, Type} = value_of(Ftuple),
+    perc_types:make_record_field(Name, Type, Filters).
 
 value_of({_Cat, _Line, Value}) ->
     Value;

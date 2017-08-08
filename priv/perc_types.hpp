@@ -5,6 +5,10 @@
 
 enum Id : unsigned int;
 
+// Nil, Null, None, empty value
+class Undefined;
+
+// Basic types
 class Integer;
 class Float;
 class Atom;
@@ -12,9 +16,7 @@ class Binary;
 class String;
 class Boolean;
 
-template <typename T>
-class Maybe;
-
+// Compound types
 template <typename T>
 class List;
 
@@ -24,12 +26,14 @@ class Tuple;
 template <typename... Ts>
 class Union;
 
+// Reference types
 template <Id id>
 class Record;
 
 template <Id id>
 class UserType;
 
+// Function type for presentation logic
 typedef ERL_NIF_TERM (*trans_func)(ErlNifEnv *, ERL_NIF_TERM);
 
 template <trans_func enc, trans_func dec, typename T>

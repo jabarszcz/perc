@@ -10,6 +10,11 @@ struct json_encoder {
 };
 
 template<>
+int json_encoder<Undefined>::encode(struct encoder *e, ERL_NIF_TERM term) {
+	return json_enc_undefined(e, term);
+}
+
+template<>
 int json_encoder<Integer>::encode(struct encoder *e, ERL_NIF_TERM term) {
 	return json_enc_integer(e, term);
 }
@@ -38,15 +43,6 @@ template<>
 int json_encoder<Boolean>::encode(struct encoder *e, ERL_NIF_TERM term) {
 	return json_enc_boolean(e, term);
 }
-
-template <typename T>
-struct json_encoder<Maybe<T>> {
-	static int encode(struct encoder *e, ERL_NIF_TERM term) {
-		if (!is_undefined(e, term))
-			return json_encoder<T>::encode(e, term);
-		return ENC_LITERAL(e, "null");
-	}
-};
 
 template <typename T>
 struct json_encoder<List<T>> {

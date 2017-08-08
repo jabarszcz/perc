@@ -18,18 +18,15 @@ int json_encoder<{{ name_template }}>::encode(
     // Field {{ field.index }} ({{ field.name }}) ignored;
     {% for line in field.ignored_reason_lines %}
     // {{ line }}{% endfor %}
-{% elif field.maybe %}
-    if (!is_undefined(e, fields[{{ field.index }}])) {% templatetag openbrace %}
+{% else %}
+    if (1{% for filter in field.filters %}
+      && {{ filter }}(e->env, fields[{{ field.index }}]){% endfor %}
+      ) {
         if (!JSON_ENC_KEY(e, first, "{{ field.name }}"))
             goto fail;
         if (!json_encode<{{ field.type_template }}>(e, fields[{{ field.index }}]))
             goto fail;
-    {% templatetag closebrace %}
-{% else %}
-    if (!JSON_ENC_KEY(e, first, "{{ field.name }}"))
-        goto fail;
-    if (!json_encode<{{ field.type_template }}>(e, fields[{{ field.index }}]))
-        goto fail;
+    }
 {% endif %}
 {% endfor %}
     if (!json_enc_end_obj(e))

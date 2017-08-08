@@ -33,5 +33,5 @@ ERL_NIF_TERM {{ nif_func.name }}(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
 static ErlNifFunc nif_funcs[] = {% templatetag openbrace %}
 {% for nif_func in module.nif_funcs %}    {% templatetag openbrace %}"{{ nif_func.name }}", 1, {{ nif_func.name }}{% templatetag closebrace %},
 {% endfor %}{% templatetag closebrace %};
-ERL_NIF_INIT({{ module.name }}, nif_funcs, NULL, NULL, NULL, NULL)
+ERL_NIF_INIT({{ module.name }}, nif_funcs, load, NULL, NULL, NULL)
 {% endautoescape %}

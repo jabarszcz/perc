@@ -122,48 +122,24 @@ reduce_unions_in_type(Type) ->
               case perc_types:get_type(Type_) of
                   union ->
                       join_types([Type_]);
-                  maybe ->
-                      join_types([Type_]);
                   _ ->
                       Type_
               end
       end, Type).
 
 join_types(Types) ->
-    join_types(Types, false).
+    join_types(Types, sets:new()).
 
-join_types(Types, Maybe) ->
-    join_types(Types, Maybe, sets:new()).
-
-join_types([], Maybe, Set) ->
-    Union = case sets:size(Set) of
-                0 -> empty_union;
-                1 -> hd(sets:to_list(Set));
-                _ -> perc_types:make_union(sets:to_list(Set))
-            end,
-    case {Maybe, Union} of
-        {true, empty_union} ->
-            perc_types:make_basic(atom); % The atom 'undefined'
-        {true, _} ->
-            perc_types:make_maybe(Union);
-        {_, empty_union} ->
-            perc_types:make_ignored(empty_union_bug);
-        _ ->
-            Union
+join_types([], Set) ->
+    case sets:size(Set) of
+        0 -> perc_types:make_ignored(empty_union_bug);
+        1 -> hd(sets:to_list(Set));
+        _ -> perc_types:make_union(sets:to_list(Set))
     end;
-join_types([Type|Types], Maybe, Set) ->
+join_types([Type|Types], Set) ->
     case perc_types:get_type(Type) of
-        maybe ->
-            join_types([perc_types:get_maybe_type(Type) | Types], true, Set);
-        basic ->
-            case perc_types:get_basic_type(Type) of
-                undefined_atom ->
-                    join_types(Types, true, Set);
-                _ ->
-                    join_types(Types, Maybe, sets:add_element(Type, Set))
-            end;
         union ->
-            join_types(perc_types:get_union_types(Type) ++ Types, Maybe, Set);
+            join_types(perc_types:get_union_types(Type) ++ Types, Set);
         _ ->
-            join_types(Types, Maybe, sets:add_element(Type, Set))
+            join_types(Types, sets:add_element(Type, Set))
     end.

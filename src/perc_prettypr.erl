@@ -29,16 +29,25 @@ format(Defs) ->
 
 format_record_fields(RecordDef) ->
     ["{\n",
-     [io_lib:format(
-        "    ~s :: ~s,~n",
-        [perc_types:get_record_field_name(F),
-         format_perc_type(
-           perc_types:get_record_field_type(F)
-          )
-        ]
-       )
+     [format_record_field(F)
       || F <- perc_types:get_record_def_fields(RecordDef)],
      "}"].
+
+format_record_field(Field) ->
+    Name = perc_types:get_record_field_name(Field),
+    TypeStr =
+        format_perc_type(
+          perc_types:get_record_field_type(Field)
+         ),
+    Filters = perc_types:get_record_field_filters(Field),
+    case Filters of
+        [] ->
+            io_lib:format("    ~s :: ~s,~n", [Name, TypeStr]);
+        _ ->
+            FiltersStr =
+                string:join([perc_filter:get_name(F) || F <- Filters], ","),
+            io_lib:format("    ~s :: ~s [~s],~n", [Name, TypeStr, FiltersStr])
+    end.
 
 format_perc_type(Type) ->
     case perc_types:get_type(Type) of
@@ -47,11 +56,10 @@ format_perc_type(Type) ->
               "ignored /* ~p */",
               [perc_types:get_ignored_reason(Type)]
               );
+        undefined_atom ->
+            "undefined";
         basic ->
             atom_to_list(perc_types:get_basic_type(Type));
-        maybe ->
-            MaybeType = perc_types:get_maybe_type(Type),
-            io_lib:format("maybe(~s)", [format_perc_type(MaybeType)]);
         list ->
             ListType = perc_types:get_list_type(Type),
             io_lib:format("list(~s)", [format_perc_type(ListType)]);

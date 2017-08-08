@@ -72,11 +72,10 @@ get_nif_function_name(Backend, Action, Type) ->
 -spec template(perc_types:perc_type()) -> iolist().
 template(Type) ->
     case perc_types:get_type(Type) of
+        undefined_atom ->
+            "Undefined";
         basic ->
             capitalize(atom_to_list(perc_types:get_basic_type(Type)));
-        maybe ->
-            MaybeType = perc_types:get_maybe_type(Type),
-            io_lib:format("Maybe<~s>", [template(MaybeType)]);
         list ->
             ListType = perc_types:get_list_type(Type),
             io_lib:format("List<~s>", [template(ListType)]);
