@@ -48,12 +48,12 @@ template <typename T>
 struct json_encoder<List<T>> {
 	static int encode(struct encoder *e, ERL_NIF_TERM term) {
 		if (!enif_is_list(e->env, term))
-			return 0;
-
-		if (!ENC_LITERAL(e, "["))
-			return 0;
+			return -1;
 
 		unsigned int index = e->index;
+		if (!ENC_LITERAL(e, "["))
+			return -1;
+
 		ERL_NIF_TERM head, tail=term;
 		int first = 1;
 		while(enif_get_list_cell(e->env, tail, &head, &tail)) {
@@ -62,7 +62,7 @@ struct json_encoder<List<T>> {
 			else
 				if (!ENC_LITERAL(e, ","))
 					goto fail;
-			if (!json_encoder<T>::encode(e, head))
+			if (json_encoder<T>::encode(e, head) < 0)
 				goto fail;
 		}
 
@@ -71,7 +71,7 @@ struct json_encoder<List<T>> {
 		return 1;
 	fail:
 		e->index = index;
-		return 0;
+		return -1;
 	}
 };
 
@@ -89,7 +89,7 @@ int json_enc_tuple_rec(struct encoder *e, const ERL_NIF_TERM *fields)
 			return 0;
 	}
 
-	if (!json_encoder<T>::encode(e, fields[i]))
+	if (json_encoder<T>::encode(e, fields[i]) < 0)
 		return 0;
 	return json_enc_tuple_rec<i+1, Ts...>(e, fields);
 }
@@ -108,10 +108,10 @@ struct json_encoder<Tuple<Ts...>> {
 		const ERL_NIF_TERM *fields;
 		unsigned int index = e->index;
 		if (!enif_get_tuple(e->env, term, &arity, &fields))
-			return 0;
+			return -1;
 		if (!json_enc_tuple_rec<0, Ts...>(e, fields)) {
 			e->index = index;
-			return 0;
+			return -1;
 		}
 		return 1;
 	}
@@ -126,7 +126,7 @@ int json_enc_union_rec(struct encoder *e, ERL_NIF_TERM term) {
 template<typename T1, typename T2, typename ...Ts>
 static
 int json_enc_union_rec(struct encoder *e, ERL_NIF_TERM term) {
-	if (!json_encoder<T1>::encode(e, term))
+	if (json_encoder<T1>::encode(e, term) < 0)
 		return json_enc_union_rec<T2, Ts...>(e, term);
 	return 1;
 }

@@ -9,7 +9,7 @@
 static inline
 int json_enc_undefined(struct encoder *e, ERL_NIF_TERM term)
 {
-        return ENC_LITERAL(e, "null");
+        return ENC_LITERAL(e, "null")? 1 : -1;
 }
 
 static inline
@@ -18,13 +18,13 @@ int json_enc_integer(struct encoder *e, ERL_NIF_TERM term)
 	ErlNifSInt64 val;
 
 	if (!enif_get_int64(e->env, term, &val))
-		return 0;
+		return -1;
 
 	unsigned int cap = capacity(e);
 
 	if (!cap) {
 		if (!ensure(e, 32))
-			return 0;
+			return -1;
 		else
 			cap = capacity(e);
 	}
@@ -33,7 +33,7 @@ int json_enc_integer(struct encoder *e, ERL_NIF_TERM term)
 	int ret = enif_snprintf(get_ptr(e), cap, INT_FMT, val);
 	if (ret >= cap) {
 		if (!ensure(e, ret+1))
-			return 0;
+			return -1;
 		ret = enif_snprintf(get_ptr(e), ret+1, INT_FMT, val);
 	}
 
@@ -47,13 +47,13 @@ int json_enc_float(struct encoder *e, ERL_NIF_TERM term)
 	double val;
 
 	if (!enif_get_double(e->env, term, &val))
-		return 0;
+		return -1;
 
 	unsigned int cap = capacity(e);
 
 	if (!cap) {
 		if (!ensure(e, 32))
-			return 0;
+			return -1;
 		else
 			cap = capacity(e);
 	}
@@ -61,7 +61,7 @@ int json_enc_float(struct encoder *e, ERL_NIF_TERM term)
 	int ret = enif_snprintf(get_ptr(e), cap, FLOAT_FMT, val);
 	if (ret >= cap) {
 		if (!ensure(e, ret+1))
-			return 0;
+			return -1;
 		ret = enif_snprintf(get_ptr(e), ret+1, FLOAT_FMT, val);
 	}
 
@@ -101,7 +101,7 @@ int json_enc_escape_buf(struct encoder *e, const char *buf, unsigned int len)
 	return 1;
 fail:
 	e->index = index;
-	return 0;
+	return -1;
 }
 
 static inline
@@ -117,7 +117,7 @@ int json_enc_atom(struct encoder *e, ERL_NIF_TERM term)
 		goto fail;
 	if (!ENC_LITERAL(e, "\""))
 		goto fail;
-	if (!json_enc_escape_buf(e, atom, len))
+	if (json_enc_escape_buf(e, atom, len) < 0)
 		goto fail;
 	if (!ENC_LITERAL(e, "\""))
 		goto fail;
@@ -125,7 +125,7 @@ int json_enc_atom(struct encoder *e, ERL_NIF_TERM term)
 	return 1;
 fail:
 	e->index = index;
-	return 0;
+	return -1;
 }
 
 static inline
@@ -134,17 +134,17 @@ int json_enc_binary(struct encoder *e, ERL_NIF_TERM term)
 	ErlNifBinary bin;
 	unsigned int index = e->index;
 	if (!enif_inspect_binary(e->env, term, &bin))
-		return 0;
+		return -1;
 	if (!ENC_LITERAL(e, "\""))
 		goto fail;
-	if (!json_enc_escape_buf(e, (char*)bin.data, bin.size))
+	if (json_enc_escape_buf(e, (char*)bin.data, bin.size) < 0)
 		goto fail;
 	if (!ENC_LITERAL(e, "\""))
 		goto fail;
 	return 1;
 fail:
 	e->index = index;
-	return 0;
+	return -1;
 }
 
 static inline
@@ -169,7 +169,7 @@ int json_enc_string(struct encoder *e, ERL_NIF_TERM term)
 	return 1;
 fail:
 	e->index = index;
-	return 0;
+	return -1;
 }
 
 static inline
@@ -180,7 +180,7 @@ int json_enc_boolean(struct encoder *e, ERL_NIF_TERM term)
 	else if (enif_is_identical(term, e->false_atom))
 		ENC_LITERAL(e, "false");
 	else
-		return 0;
+		return -1;
 	return 1;
 }
 

@@ -2,6 +2,8 @@
 
 -behaviour(perc_backend).
 
+-define(EMPTY_OBJ_FILTER, "no_empty_obj").
+
 %% API exports
 -export([
     name/0,
@@ -67,12 +69,18 @@ field_dict(Field, Index) ->
             [] -> [];
             Filters ->
                 [{filters, [perc_filter:get_name(F)
-                            || F <- Filters]}]
+                            || F <- Filters,
+                               perc_filter:get_name(F) /= ?EMPTY_OBJ_FILTER]}]
         end,
+    EmptyObjFilter =
+        lists:any(fun (Filter) ->
+                          perc_filter:get_name(Filter) == ?EMPTY_OBJ_FILTER
+                  end, perc_types:get_record_field_filters(Field)),
     lists:append(
       [TypeVals, FilterVals,
        [{name, perc_types:get_record_field_name(Field)},
-        {index, Index}]
+        {index, Index},
+        {no_empty_obj, EmptyObjFilter}]
       ]).
 
 enumerate(List) ->
