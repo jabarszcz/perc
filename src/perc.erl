@@ -128,8 +128,12 @@ get_gen_sopath(Gen) ->
             filename:join(Dir, SoName);
         _ ->
             AppAtom = list_to_atom(AppName),
-            Root = code:lib_dir(AppAtom),
-            filename:join([Root, Dir, SoName])
+            case code:lib_dir(AppAtom) of
+                {error, bad_name} ->
+                    filename:join(Dir, SoName);
+                Root ->
+                    filename:join([Root, Dir, SoName])
+            end
     end.
 
 -spec get_gen_appname(generator()) -> string() | undefined.
