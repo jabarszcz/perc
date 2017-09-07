@@ -310,7 +310,8 @@ generate_nif(Gen) ->
             SoFile = io_lib:format("~s.so", [SoPath]),
             ErlNifIncludeDir = filename:join(code:root_dir(), "usr/include"),
             CIncludeDir = code:priv_dir(perc),
-            Flags = proplists:get_value(cpp_flags, Opts, ""),
+            FlagsList = proplists:get_all_values(cpp_flags, Opts),
+            Flags = string:join(FlagsList, " "),
             Cmd = io_lib:format(
                     "g++ -fvisibility=hidden -nodefaultlibs "
                     "-o ~s -fpic -shared ~s -I ~s -I ~s -I . ~s",
