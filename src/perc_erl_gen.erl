@@ -40,7 +40,8 @@ generate(Generator) ->
               )
             ),
            [erl_syntax:clause(
-              [erl_syntax:underscore()],
+              [erl_syntax:underscore(),
+               erl_syntax:underscore()],
               none,
               [erl_syntax:application(
                  none, erl_syntax:atom(throw),

@@ -20,7 +20,7 @@ int json_encoder<{{ name_template }}>::encode(
     // {{ line }}{% endfor %}
 {% else %}
     if (1{% for filter in field.filters %}
-      && {{ filter }}(e->env, fields[{{ field.index }}]){% endfor %}
+      && {{ filter }}(e->env, fields[{{ field.index }}], e->opts){% endfor %}
       ) {
         int before_field_idx = e->index;
         if (!JSON_ENC_KEY(e, first, "{{ field.name }}"))

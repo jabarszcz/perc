@@ -12,17 +12,19 @@ struct encoder {
 	ERL_NIF_TERM undef_atom;
 	ERL_NIF_TERM true_atom;
 	ERL_NIF_TERM false_atom;
+	ERL_NIF_TERM opts;
 };
 
 static inline
 int encoder_init(ErlNifEnv *env, struct encoder *e,
-			     unsigned int size)
+                 unsigned int size, ERL_NIF_TERM enc_opts)
 {
 	if (!enif_alloc_binary(size, &e->bin))
 		return 0;
 
 	e->index = 0;
 	e->env = env;
+	e->opts = enc_opts;
 
 	e->undef_atom = enif_make_atom(env, "undefined");
 	e->true_atom = enif_make_atom(env, "true");

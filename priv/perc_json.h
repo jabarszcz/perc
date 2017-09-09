@@ -231,13 +231,13 @@ int load(ErlNifEnv * env, void** priv_data, ERL_NIF_TERM load_info)
 }
 
 static inline
-int no_undef(ErlNifEnv *env, ERL_NIF_TERM term)
+int no_undef(ErlNifEnv *env, ERL_NIF_TERM term, ERL_NIF_TERM opts)
 {
         return !enif_is_identical(data.undef, term);
 }
 
 static inline
-int no_empty_list(ErlNifEnv *env, ERL_NIF_TERM term)
+int no_empty_list(ErlNifEnv *env, ERL_NIF_TERM term, ERL_NIF_TERM opts)
 {
         return !enif_is_identical(data.empty_list, term);
 }

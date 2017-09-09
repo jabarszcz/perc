@@ -34,7 +34,7 @@ template <Id id>
 class UserType;
 
 // Function type for presentation logic
-typedef ERL_NIF_TERM (*trans_func)(ErlNifEnv *, ERL_NIF_TERM);
+typedef ERL_NIF_TERM (*trans_func)(ErlNifEnv *, ERL_NIF_TERM, ERL_NIF_TERM);
 
 template <trans_func enc, trans_func dec, typename T>
 class Function;
