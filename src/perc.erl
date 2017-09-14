@@ -90,7 +90,7 @@ main(Args) ->
             erlang:halt(1)
     end.
 
--spec generate_codecs([option()]) -> ok | no_return().
+-spec generate_codecs(list()) -> ok | no_return().
 generate_codecs(Options) ->
     Gen = gen_from_options(Options),
     case Gen#generator.exported of
