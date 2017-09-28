@@ -19,6 +19,7 @@
     perc_json,
     perc_parse_erl,
     perc_reduce,
+    perc_rparser,
     perc_types
    ]},
 

@@ -273,7 +273,7 @@ gen_from_options(Opts) ->
     DefsB =
         [begin
              {ok, Tokens, _} = perc_scanner:file(F),
-             {ok, Parsed} = perc_parser:parse(Tokens),
+             {ok, Parsed} = perc_rparser:parse_defs(Tokens),
              Parsed
          end || F <- PercInputs],
     Defs = merge_defs([DefsAFilters | DefsB]),

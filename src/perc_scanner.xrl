@@ -35,8 +35,19 @@ _				: {token, {wildcard, TokenLine}}.
 Erlang code.
 
 -export([
-    file/1
-  ]).
+    file/1,
+    token_line/1,
+    token_val/1
+]).
+
+-export_type([
+    token/1,
+    tokens/0
+]).
+
+-type token(V) :: {V, integer()} | {atom(), integer(), V}.
+
+-type tokens() :: [token(any())].
 
 -type string_ret() :: {ok, [tuple()], integer()}
                     | {error, {integer(), module(), any()}, any()}.
@@ -57,3 +68,13 @@ Erlang code.
 file(Filename) ->
     {ok, In} = file:read_file(Filename),
     string(unicode:characters_to_list(In)).
+
+-spec token_val(token(V)) -> V.
+token_val({_Category, _Line, Value}) ->
+    Value;
+token_val({Value, _Line}) ->
+    Value.
+
+-spec token_line(token(any())) -> integer().
+token_line(Token) ->
+    element(2, Token).
