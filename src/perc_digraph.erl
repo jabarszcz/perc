@@ -58,15 +58,19 @@ delete(State) ->
         perc_types:perc_type()
        ) -> perc_types:perc_type().
 reduce_ignored(State, Type) ->
-    Vertex = dict:fetch(Type, State#state.dict),
-    IgnoredVertex = dict:fetch(ignored, State#state.dict),
-    Graph = State#state.norec_graph,
-    case digraph:get_path(Graph, Vertex, IgnoredVertex) of
-        false ->
+    case dict:find(ignored, State#state.dict) of
+        error ->
             Type;
-        Path ->
-            Stack = filter_ignored_path(get_labels(Graph, Path)),
-            perc_types:make_ignored(Stack)
+        IgnoredVertex ->
+            Vertex = dict:fetch(Type, State#state.dict),
+            Graph = State#state.norec_graph,
+            case digraph:get_path(Graph, Vertex, IgnoredVertex) of
+                false ->
+                    Type;
+                Path ->
+                    Stack = filter_ignored_path(get_labels(Graph, Path)),
+                    perc_types:make_ignored(Stack)
+            end
     end.
 
 -spec compute_deps(
