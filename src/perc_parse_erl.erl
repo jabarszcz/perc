@@ -3,19 +3,22 @@
 %% API exports
 -export([
     read/1,
-    read_all/1
+    read/2,
+    read_all/1,
+    read_all/2
   ]).
+
 
 %%====================================================================
 %% API functions
 %%====================================================================
 
--spec analyse_forms([erl_parse:abstract_form()]) -> perc:defs().
-analyse_forms(Forms) ->
-    perc:make_defs(get_record_defs(Forms), get_usertype_defs(Forms)).
-
 -spec read(string()) -> perc:defs() | no_return().
 read(Filename) ->
+    read(Filename, undefined).
+
+-spec read(string(), string() | undefined) -> perc:defs() | no_return().
+read(Filename, CodecName) ->
     Forms =
         case epp:parse_file(Filename, []) of
             {ok, ParsedForms} ->
@@ -25,29 +28,47 @@ read(Filename) ->
             {error, enoent} ->
                 throw({file_not_found, Filename})
         end,
-    analyse_forms(Forms).
+    Comments = erl_comment_scan:file(Filename),
+    Recommented = erl_recomment:recomment_forms(Forms, Comments),
+    analyse_forms(Recommented, CodecName).
 
 -spec read_all([string()]) -> perc:defs() | no_return().
 read_all(Filenames) ->
-    perc:merge_defs([read(Filename) || Filename <- Filenames]).
+    read_all(Filenames, undefined).
+
+-spec read_all([string()], string() | undefined) -> perc:defs() | no_return().
+read_all(Filenames, CodecName) ->
+    perc:merge_defs([read(Filename, CodecName) || Filename <- Filenames]).
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
-get_record_defs(Forms) ->
-    RecForms = lists:filter(fun is_record_form/1, Forms),
-    [analyse_record_form(RecForm) || RecForm <- RecForms ].
+-spec analyse_forms(erl_syntax:syntaxtree(), string() | undefined) -> perc:defs().
+analyse_forms(FormList, CodecName) ->
+    perc:make_defs(get_record_defs(FormList, CodecName), get_usertype_defs(FormList)).
 
-get_usertype_defs(Forms) ->
-    UserTypeForms = lists:filter(fun is_usertype_form/1, Forms),
+get_record_defs(FormList, CodecName) ->
+    RecForms =
+        lists:filter(
+          fun is_record_form/1,
+          erl_syntax:form_list_elements(FormList)
+         ),
+    [analyse_record_form(RecForm, CodecName) || RecForm <- RecForms ].
+
+get_usertype_defs(FormList) ->
+    UserTypeForms =
+        lists:filter(
+          fun is_usertype_form/1,
+          erl_syntax:form_list_elements(FormList)
+         ),
     [analyse_usertype_form(Form) || Form <- UserTypeForms].
 
-analyse_record_form(Form) ->
+analyse_record_form(Form, CodecName) ->
     [NameTree, FieldsTree] = erl_syntax:attribute_arguments(Form),
     Name = erl_syntax:atom_name(NameTree),
     Fields =
-        [analyse_record_field(FieldTree)
+        [analyse_record_field(FieldTree, CodecName)
          || FieldTree <- erl_syntax:tuple_elements(FieldsTree)],
     perc_types:make_record_def(Name, Fields).
 
@@ -60,30 +81,108 @@ analyse_usertype_form(Form) ->
       analyse_typetree(TypeTree)
      ).
 
-analyse_record_field(Field) ->
-    case erl_syntax:type(Field) of
-        typed_record_field ->
-            Name =
-                erl_syntax:atom_name(
-                  erl_syntax:record_field_name(
-                    erl_syntax:typed_record_field_body(Field)
-                   )
-                 ),
-            Type =
-                analyse_typetree(
-                  erl_syntax:typed_record_field_type(Field)
-                 ),
-            perc_types:make_record_field(Name, Type);
-        record_field ->
-            Name =
-                erl_syntax:atom_name(
-                  erl_syntax:record_field_name(Field)
-                 ),
-            perc_types:make_record_field(
-              Name,
-              perc_types:make_ignored(untyped_field)
-             )
+analyse_comments(Tree, CodecName) ->
+    CommentLines =
+        [strip_comment(T) || C <- erl_syntax:get_precomments(Tree)
+                                 ++ erl_syntax:get_postcomments(Tree),
+                             T <- erl_syntax:comment_text(C)],
+    Comment = string:join(CommentLines, "\n"),
+    %% return the type, filters, and the codec names to which it applies
+    case extract_perc_comment_annotation(Comment) of
+        {match, AnnotationsStrings} ->
+            analyse_annotations(AnnotationsStrings, CodecName);
+        nomatch ->
+            [] % empty annotations
     end.
+
+strip_comment(String) ->
+    %% Remove percent signs (%) at beginning
+    string:strip(String, left, $%).
+
+extract_perc_comment_annotation(String) ->
+    re:run(String, "#perc#([^;]*);", [{capture, [1], list}]).
+
+analyse_annotations(AnnotationStrings, CodecName) ->
+    Annotations = [analyse_annotation(String) || String <- AnnotationStrings],
+    choose_annotations(Annotations, CodecName).
+
+choose_annotations(Annotations, CodecName) ->
+    General = proplists:get_all_values(undefined, Annotations),
+    Specific =
+        case CodecName of
+            undefined ->
+                [];
+            Searched ->
+                proplists:get_all_values(Searched, Annotations)
+        end,
+    %% Specific annotations come before for higher priority
+    lists:append(Specific ++ General).
+
+analyse_annotation(String) ->
+    case perc_scanner:string(String) of
+        {ok, Toks, _EndLine} ->
+            case perc_rparser:parse_annotation(Toks) of
+                {ok, Parsed} ->
+                    Parsed;
+                {error, ParseErrorLine, ParseReason} ->
+                    io:format(
+                      "Parse error: (line ~B) ~s~n",
+                      [ParseErrorLine, perc_rparser:format_error(ParseReason)]
+                     ),
+                    [] % empty annotations
+            end;
+        {ErrorLine, _Module, Reason} ->
+            io:format(
+              "Scan error: (line ~B) ~s~n",
+              [ErrorLine, perc_scanner:format_error(Reason)]
+             ),
+            [] % empty annotations
+    end.
+
+analyse_record_field(FieldTree, CodecName) ->
+    CommentInfo = analyse_comments(FieldTree, CodecName),
+    Field1 =
+        case erl_syntax:type(FieldTree) of
+            typed_record_field ->
+                Name =
+                    erl_syntax:atom_name(
+                      erl_syntax:record_field_name(
+                        erl_syntax:typed_record_field_body(FieldTree)
+                       )
+                     ),
+                Type =
+                    analyse_typetree(
+                      erl_syntax:typed_record_field_type(FieldTree)
+                     ),
+                perc_types:make_record_field(Name, Type);
+            record_field ->
+                Name =
+                    erl_syntax:atom_name(
+                      erl_syntax:record_field_name(FieldTree)
+                     ),
+                perc_types:make_record_field(
+                  Name,
+                  perc_types:make_ignored(untyped_field)
+                 )
+        end,
+    Field2 =
+        case proplists:get_value(type, CommentInfo) of
+            undefined ->
+                Field1;
+            TypeVal ->
+                perc_types:set_record_field_type(Field1, TypeVal)
+        end,
+    Field3 =
+        case proplists:get_all_values(filters, CommentInfo) of
+            undefined ->
+                Field2;
+            Filters ->
+                perc_types:set_record_field_filters(
+                  Field2,
+                  lists:append(Filters)
+                 )
+        end,
+    Field3.
 
 %% TODO support the full list :
 %% http://erlang.org/doc/reference_manual/typespec.html
@@ -169,7 +268,8 @@ is_record_form(Form) ->
         "record" -> true;
         _ -> false
     catch
-        error:{badarg, _} -> false
+        error:{badarg, _} -> false;
+        error:{badrecord, _} -> false
     end.
 
 is_usertype_form(Form) ->
@@ -178,5 +278,6 @@ is_usertype_form(Form) ->
         "opaque" -> true;
         _ -> false
     catch
-        error:{badarg, _} -> false
+        error:{badarg, _} -> false;
+        error:{badrecord, _} -> false
     end.

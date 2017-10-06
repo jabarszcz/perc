@@ -1,14 +1,21 @@
 -module(perc_rparser).
 
+%% API exports
+
 -export([
-    type/1,
-    parse_defs/1
-%%,record_def/1
+    format_error/1,
+    parse_annotation/1,
+    parse_defs/1,
+    parse_type/1
 ]).
 
 -export_type([
     parse_error/0
 ]).
+
+%%====================================================================
+% API Types
+%%====================================================================
 
 -record(parse_error, {
           expected :: any(),
@@ -18,6 +25,55 @@
 
 -opaque parse_error() :: #parse_error{}.
 
+%%====================================================================
+%% API functions
+%%====================================================================
+
+-spec format_error(parse_error()) -> iolist().
+format_error(Error) ->
+    io_lib:format(
+      "Expected: ~p, Found: ~p.~n",
+      [Error#parse_error.expected,
+       Error#parse_error.actual]
+      ).
+
+-spec parse_annotation(perc_scanner:tokens()) ->
+                              {ok, {string() | undefined, list()}}
+                                  | {error, parse_error()}.
+parse_annotation(Tokens) ->
+    case either:get_either(annotation(Tokens)) of
+        {right, {Val, _Line, []}} ->
+            {ok, Val};
+        {left, Err} ->
+            {error, get_err_line(Err), Err}
+    end.
+
+-spec parse_defs(perc_scanner:tokens()) ->
+                        {ok, perc_types:defs()}
+                            | {error, parse_error()}.
+parse_defs(Tokens) ->
+    case either:get_either(defs(Tokens)) of
+        {right, {Val, _Line, []}} ->
+            {ok, Val};
+        {left, Err} ->
+            {error, get_err_line(Err), Err}
+    end.
+
+-spec parse_type(perc_scanner:tokens()) ->
+                        {ok, perc_types:perc_type()}
+                            | {error, parse_error()}.
+parse_type(Tokens) ->
+    case either:get_either(type(Tokens)) of
+        {right, {Val, _Line, []}} ->
+            {ok, Val};
+        {left, Err} ->
+            {error, get_err_line(Err), Err}
+    end.
+
+%%====================================================================
+%% Internal Types
+%%====================================================================
+
 -type parse_success(V) :: {V, integer(), perc_parser:tokens()}.
 
 -type parse_result(V) ::
@@ -25,14 +81,49 @@
 
 -type parser(V) :: fun((perc_scanner:tokens()) -> parse_result(V)).
 
--spec parse_defs(perc_scanner:tokens()) -> {ok, perc_types:defs()} | {error, parse_error()}.
-parse_defs(Tokens) ->
-    case either:get_either(defs(Tokens)) of
-        {right, {Val, _Line, []}} ->
-            {ok, Val};
-        {left, Err} ->
-            {error, Err}
-    end.
+%%====================================================================
+%% Internal functions
+%%====================================================================
+
+get_err_line(Err) ->
+    Err#parse_error.line.
+
+annotation(Tokens) ->
+    Ret = seq(
+            [fun(Toks) -> choice(
+                            [fun codec_name/1,
+                             fun(Toks2) ->
+                                     either:make_right(
+                                       {undefined, undefined, Toks2}
+                                      )
+                             end],
+                            Toks
+                           )
+             end,
+             fun field_props/1,
+             fun eof/1],
+            Tokens
+           ),
+    either:apply(
+      fun ({[{Name, _, _}, {Props, Line, _}, _], Rest}) ->
+              {{Name, Props}, Line, Rest}
+      end,
+      Ret
+     ).
+
+codec_name(Tokens) ->
+    Ret = seq(
+            [fun(Toks) -> match('(', Toks) end,
+             fun id/1,
+             fun(Toks) -> match(')', Toks) end],
+            Tokens
+           ),
+    either:apply(
+      fun({[{_, Line, _}, {Name, _, _}, _], Rest}) ->
+              {Name, Line, Rest}
+      end,
+      Ret
+     ).
 
 defs(Tokens) ->
     Parser =
@@ -98,57 +189,47 @@ fields(Tokens) ->
      ).
 
 field(Tokens) ->
-    choice(
-      [fun filtered_field/1,
-       fun field_body/1],
-      Tokens
-     ).
-
-filtered_field(Tokens) ->
-    Ret =
-        seq(
-          [fun field_body/1,
-           fun filters/1],
-          Tokens
-         ),
+    Ret = seq(
+            [fun id_maybe/1,
+             fun field_props/1],
+            Tokens
+           ),
     either:apply(
-      fun({[{Field, Line, _}, {Filters, _, _}], Rest}) ->
-              {perc_types:set_record_field_filters(Field, Filters), Line, Rest}
+      fun({[{Id, Line, _}, {List, _, _}], Rest}) ->
+              {make_field(Id, List), Line, Rest}
       end,
       Ret
      ).
 
-field_body(Tokens) ->
+field_props(Tokens) ->
+    kleene(fun field_prop/1, Tokens).
+
+field_prop(Tokens) ->
     choice(
-      [fun wildcard_field_body/1,
-       fun named_field_body/1],
+      [fun type_prop/1,
+       fun filters_prop/1],
       Tokens
      ).
 
-wildcard_field_body(Tokens) ->
+type_prop(Tokens) ->
+    Ret = seq(
+            [fun (Toks) -> match('::', Toks) end,
+             fun type/1],
+            Tokens
+           ),
     either:apply(
-      fun({_, Line, Rest}) ->
-              {perc_types:make_record_field(
-                 undefined, perc_types:make_ignored()
-                ),
-               Line, Rest}
-      end,
-      match(wildcard, Tokens)
-     ).
-
-named_field_body(Tokens) ->
-    Ret =
-        seq(
-          [fun id/1,
-           fun(Toks) -> match('::', Toks) end,
-           fun type/1],
-          Tokens
-         ),
-    either:apply(
-      fun({[{Id, Line, _}, _, {Type, _, _}], Rest}) ->
-              {perc_types:make_record_field(Id, Type), Line, Rest}
+      fun({[{_, Line, _}, {Type, _, _}], Rest}) ->
+              {{type, Type}, Line, Rest}
       end,
       Ret
+     ).
+
+filters_prop(Tokens) ->
+    either:apply(
+      fun({Filters, Line, Rest}) ->
+              {{filters, Filters}, Line, Rest}
+      end,
+      filters(Tokens)
      ).
 
 filters(Tokens) ->
@@ -165,7 +246,6 @@ filters(Tokens) ->
       end,
       Ret
      ).
-
 
 -spec type(perc_scanner:tokens()) -> parse_result(perc_types:perc_type()).
 type(Tokens) ->
@@ -263,9 +343,9 @@ function_ref(Tokens) ->
     Ret = seq(
             [fun(Toks) -> match(function, Toks) end,
              fun(Toks) -> match('<', Toks) end,
-             fun func_name/1,
+             fun id_maybe/1,
              fun(Toks) -> match(',', Toks) end,
-             fun func_name/1,
+             fun id_maybe/1,
              fun(Toks) -> match('>', Toks) end],
             Tokens
            ),
@@ -276,10 +356,10 @@ function_ref(Tokens) ->
       Ret
      ).
 
-func_name(Tokens) ->
-    choice([fun id/1, fun func_name_wildcard/1], Tokens).
+id_maybe(Tokens) ->
+    choice([fun id/1, fun wildcard/1], Tokens).
 
-func_name_wildcard(Tokens) ->
+wildcard(Tokens) ->
     either:apply(
       fun({_, Line, Rest}) ->
               {undefined, Line, Rest}
@@ -445,6 +525,10 @@ match(Expected, [Token|_]) ->
 match(Expected, []) ->
     make_error("End of tokens", Expected, -1).
 
+eof([]) ->
+    either:make_right({undefined, undefined, []});
+eof([Tok|_]) ->
+    make_error(Tok, "End of tokens").
 
 make_error(Actual, Expected, Line) ->
     either:make_left(
@@ -519,3 +603,8 @@ make_type(Id, Line, Rest, Args) ->
         _ ->
             either:make_right({Res, Line, Rest})
     end.
+
+make_field(Id, Proplist) ->
+    Type = proplists:get_value(type, Proplist, perc_types:make_ignored()),
+    Filters = proplists:get_all_values(filters, Proplist),
+    perc_types:make_record_field(Id, Type, lists:append(Filters)).
