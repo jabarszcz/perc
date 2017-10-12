@@ -44,9 +44,15 @@ read_all(Filenames, CodecName) ->
 %% Internal functions
 %%====================================================================
 
--spec analyse_forms(erl_syntax:syntaxtree(), string() | undefined) -> perc:defs().
+-spec analyse_forms(
+        erl_syntax:syntaxtree(),
+        string() | undefined
+       ) -> perc:defs().
 analyse_forms(FormList, CodecName) ->
-    perc:make_defs(get_record_defs(FormList, CodecName), get_usertype_defs(FormList)).
+    perc:make_defs(
+      get_record_defs(FormList, CodecName),
+      get_usertype_defs(FormList)
+     ).
 
 get_record_defs(FormList, CodecName) ->
     RecForms =
@@ -90,20 +96,30 @@ analyse_comments(Tree, CodecName) ->
     %% return the type, filters, and the codec names to which it applies
     case extract_perc_comment_annotation(Comment) of
         {match, AnnotationsStrings} ->
-            analyse_annotations(AnnotationsStrings, CodecName);
+            analyse_annotations(
+              lists:map(fun hd/1, AnnotationsStrings),
+              CodecName
+             );
         nomatch ->
             [] % empty annotations
     end.
 
 strip_comment(String) ->
-    %% Remove percent signs (%) at beginning
+    %% Remove extra percent signs (%) at beginning
     string:strip(String, left, $%).
 
 extract_perc_comment_annotation(String) ->
-    re:run(String, "#perc#([^;]*);", [{capture, [1], list}]).
+    %% TODO line number?
+    re:run(String, "#perc#([^;]*);", [{capture, [1], list}, global]).
 
 analyse_annotations(AnnotationStrings, CodecName) ->
-    Annotations = [analyse_annotation(String) || String <- AnnotationStrings],
+    Annotations =
+        lists:append(
+          [distribute_over_codecs(
+             analyse_annotation(String)
+            )
+           || String <- AnnotationStrings]
+         ),
     choose_annotations(Annotations, CodecName).
 
 choose_annotations(Annotations, CodecName) ->
@@ -118,6 +134,14 @@ choose_annotations(Annotations, CodecName) ->
     %% Specific annotations come before for higher priority
     lists:append(Specific ++ General).
 
+distribute_over_codecs({Names, Props}) ->
+    case Names of
+        undefined ->
+            [{undefined, Props}];
+        _ ->
+            [{Name, Props} || Name <- Names]
+    end.
+
 analyse_annotation(String) ->
     case perc_scanner:string(String) of
         {ok, Toks, _EndLine} ->
@@ -131,7 +155,7 @@ analyse_annotation(String) ->
                      ),
                     [] % empty annotations
             end;
-        {ErrorLine, _Module, Reason} ->
+        {error, {ErrorLine, _Module, Reason}, _} ->
             io:format(
               "Scan error: (line ~B) ~s~n",
               [ErrorLine, perc_scanner:format_error(Reason)]
@@ -174,7 +198,7 @@ analyse_record_field(FieldTree, CodecName) ->
         end,
     Field3 =
         case proplists:get_all_values(filters, CommentInfo) of
-            undefined ->
+            [] ->
                 Field2;
             Filters ->
                 perc_types:set_record_field_filters(

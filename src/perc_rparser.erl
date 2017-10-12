@@ -3,6 +3,7 @@
 %% API exports
 
 -export([
+    error_line/1,
     format_error/1,
     parse_annotation/1,
     parse_defs/1,
@@ -10,17 +11,20 @@
 ]).
 
 -export_type([
-    parse_error/0
+    parse_error/0,
+    linespec/0
 ]).
 
 %%====================================================================
 % API Types
 %%====================================================================
 
+-type linespec() :: integer() | undefined.
+
 -record(parse_error, {
           expected :: any(),
           actual :: any(),
-          line :: integer()
+          line :: linespec()
 }).
 
 -opaque parse_error() :: #parse_error{}.
@@ -28,6 +32,10 @@
 %%====================================================================
 %% API functions
 %%====================================================================
+
+-spec error_line(parse_error()) -> linespec().
+error_line(Err) ->
+    Err#parse_error.line.
 
 -spec format_error(parse_error()) -> iolist().
 format_error(Error) ->
@@ -38,218 +46,224 @@ format_error(Error) ->
       ).
 
 -spec parse_annotation(perc_scanner:tokens()) ->
-                              {ok, {string() | undefined, list()}}
-                                  | {error, parse_error()}.
+                              {ok, {[string()] | undefined, list()}}
+                                  | {error, linespec(), parse_error()}.
 parse_annotation(Tokens) ->
     case either:get_either(annotation(Tokens)) of
-        {right, {Val, _Line, []}} ->
+        {right, {{Val, _Line}, []}} ->
             {ok, Val};
         {left, Err} ->
-            {error, get_err_line(Err), Err}
+            {error, error_line(Err), Err}
     end.
 
 -spec parse_defs(perc_scanner:tokens()) ->
                         {ok, perc_types:defs()}
-                            | {error, parse_error()}.
+                            | {error, linespec(), parse_error()}.
 parse_defs(Tokens) ->
     case either:get_either(defs(Tokens)) of
-        {right, {Val, _Line, []}} ->
+        {right, {{Val, _Line}, []}} ->
             {ok, Val};
         {left, Err} ->
-            {error, get_err_line(Err), Err}
+            {error, error_line(Err), Err}
     end.
 
 -spec parse_type(perc_scanner:tokens()) ->
                         {ok, perc_types:perc_type()}
-                            | {error, parse_error()}.
+                            | {error, linespec(), parse_error()}.
 parse_type(Tokens) ->
     case either:get_either(type(Tokens)) of
-        {right, {Val, _Line, []}} ->
+        {right, {{Val, _Line}, []}} ->
             {ok, Val};
         {left, Err} ->
-            {error, get_err_line(Err), Err}
+            {error, error_line(Err), Err}
     end.
 
 %%====================================================================
 %% Internal Types
 %%====================================================================
 
--type parse_success(V) :: {V, integer(), perc_parser:tokens()}.
-
--type parse_result(V) ::
-        either:either(parse_error(), parse_success(V)).
-
--type parser(V) :: fun((perc_scanner:tokens()) -> parse_result(V)).
+-type val(V) :: {V, linespec()}.
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
-get_err_line(Err) ->
-    Err#parse_error.line.
+line_from_tokens([T|_]) ->
+    perc_scanner:token_line(T);
+line_from_tokens(_) ->
+    undefined.
+
+-spec get_val(val(V)) -> V.
+get_val({Val, _Line}) ->
+    Val.
+
+-spec get_line(val(any())) -> linespec().
+get_line({_Val, Line}) ->
+    Line.
 
 annotation(Tokens) ->
-    Ret = seq(
-            [fun(Toks) -> choice(
-                            [fun codec_name/1,
-                             fun(Toks2) ->
-                                     either:make_right(
-                                       {undefined, undefined, Toks2}
-                                      )
-                             end],
-                            Toks
-                           )
-             end,
+    Ret = perc_combinators:seq_(
+            [perc_combinators:alt(
+               [fun codec_names/1,
+                perc_combinators:succ({undefined, line_from_tokens(Tokens)})]
+              ),
              fun field_props/1,
              fun eof/1],
             Tokens
            ),
     either:apply(
-      fun ({[{Name, _, _}, {Props, Line, _}, _], Rest}) ->
-              {{Name, Props}, Line, Rest}
+      fun ({[{Names, _}, {Props, Line}, _], Rest}) ->
+              {{{Names, Props}, Line}, Rest}
       end,
       Ret
      ).
 
-codec_name(Tokens) ->
-    Ret = seq(
-            [fun(Toks) -> match('(', Toks) end,
-             fun id/1,
-             fun(Toks) -> match(')', Toks) end],
+codec_names(Tokens) ->
+    Ret = perc_combinators:list_strict_(
+            fun id/1,
+            match('('),
+            match(','),
+            match(')'),
             Tokens
            ),
     either:apply(
-      fun({[{_, Line, _}, {Name, _, _}, _], Rest}) ->
-              {Name, Line, Rest}
+      fun({{List, {_, Line}, _}, Rest}) ->
+              Names = lists:map(fun get_val/1, List),
+              {{Names, Line}, Rest}
       end,
       Ret
      ).
 
 defs(Tokens) ->
     Parser =
-        fun(Toks) ->
-                choice(
-                  [fun record_def/1,
-                   fun usertype_def/1],
-                  Toks
-                 )
-        end,
-    Ret = kleene(Parser, Tokens),
+        perc_combinators:alt(
+          [fun record_def/1,
+           fun usertype_def/1]
+         ),
+    Ret = many(Parser, Tokens),
     case either:get_right(Ret) of
-        {List, Line, []} ->
+        {{List, Line}, []} ->
             Defs =
                 perc:make_defs(
                   lists:filter(fun perc_types:is_record_def/1, List),
                   lists:filter(fun perc_types:is_usertype_def/1, List)
-                 ),                  
-            either:make_right({Defs, Line, []});
-        {_, _, Toks} ->
+                 ),
+            either:make_right({{Defs, Line}, []});
+        {{_, _}, Toks} ->
             Parser(Toks) %% Does not parse but return the error
     end.
 
 record_def(Tokens) ->
-    Ret = seq(
-            [fun(Toks) -> match(record, Toks) end,
+    Ret = perc_combinators:seq_(
+            [match(record),
              fun id/1,
-             fun(Toks) -> match('::', Toks) end,
+             match('::'),
              fun fields/1,
-             fun(Toks) -> match(def_sep, Toks) end],
+             match(def_sep)],
             Tokens
            ),
     either:apply(
-      fun({[_, {Id, Line, _}, _, {Fields, _, _}, _], Rest}) ->
-              {perc_types:make_record_def(Id, Fields), Line, Rest}
+      fun({[_, {Id, Line}, _, {Fields, _}, _], Rest}) ->
+              {{perc_types:make_record_def(Id, Fields), Line}, Rest}
       end,
       Ret
      ).
 
 usertype_def(Tokens) ->
-    Ret = seq(
-            [fun(Toks) -> match(usertype, Toks) end,
+    Ret = perc_combinators:seq_(
+            [match(usertype),
              fun id/1,
-             fun(Toks) -> match('::', Toks) end,
+             match('::'),
              fun type/1,
-             fun(Toks) -> match(def_sep, Toks) end],
+             match(def_sep)],
             Tokens
            ),
     either:apply(
-      fun({[_, {Id, Line, _}, _, {Type, _, _}, _], Rest}) ->
-              {perc_types:make_record_def(Id, Type), Line, Rest}
+      fun({[_, {Id, Line}, _, {Type, _}, _], Rest}) ->
+              {{perc_types:make_record_def(Id, Type), Line}, Rest}
       end,
       Ret
      ).
 
 fields(Tokens) ->
-    list_permissive(
-      fun field/1,
-      fun(Toks) -> match('{', Toks) end,
-      fun(Toks) -> match(',', Toks) end,
-      fun(Toks) -> match('}', Toks) end,
-      Tokens
+    Ret =
+        perc_combinators:list_permissive_(
+          fun field/1,
+          match('{'),
+          match(','),
+          match('}'),
+          Tokens
+         ),
+    either:apply(
+      fun({{List, Start, _}, Rest}) ->
+              {{lists:map(fun get_val/1, List), get_line(Start)}, Rest}
+      end,
+      Ret
      ).
 
 field(Tokens) ->
-    Ret = seq(
+    Ret = perc_combinators:seq_(
             [fun id_maybe/1,
              fun field_props/1],
             Tokens
            ),
     either:apply(
-      fun({[{Id, Line, _}, {List, _, _}], Rest}) ->
-              {make_field(Id, List), Line, Rest}
+      fun({[{Id, Line}, {List, _}], Rest}) ->
+              {{make_field(Id, List), Line}, Rest}
       end,
       Ret
      ).
 
 field_props(Tokens) ->
-    kleene(fun field_prop/1, Tokens).
+    many(fun field_prop/1, Tokens).
 
 field_prop(Tokens) ->
-    choice(
+    perc_combinators:alt_(
       [fun type_prop/1,
        fun filters_prop/1],
       Tokens
      ).
 
 type_prop(Tokens) ->
-    Ret = seq(
-            [fun (Toks) -> match('::', Toks) end,
+    Ret = perc_combinators:seq_(
+            [match('::'),
              fun type/1],
             Tokens
            ),
     either:apply(
-      fun({[{_, Line, _}, {Type, _, _}], Rest}) ->
-              {{type, Type}, Line, Rest}
+      fun({[{_, Line}, {Type, _}], Rest}) ->
+              {{{type, Type}, Line}, Rest}
       end,
       Ret
      ).
 
 filters_prop(Tokens) ->
     either:apply(
-      fun({Filters, Line, Rest}) ->
-              {{filters, Filters}, Line, Rest}
+      fun({{Filters, Line}, Rest}) ->
+              {{{filters, Filters}, Line}, Rest}
       end,
       filters(Tokens)
      ).
 
 filters(Tokens) ->
-    Ret = list(
-            fun id/1,
-            fun(Toks) -> match('[', Toks) end,
-            fun(Toks) -> match(',', Toks) end,
-            fun(Toks) -> match(']', Toks) end,
-            Tokens
-           ),
+    Ret =
+        perc_combinators:list_strict_(
+          fun id/1,
+          match('['),
+          match(','),
+          match(']'),
+          Tokens
+         ),
     either:apply(
-      fun({List, Line, Rest}) ->
-              {lists:map(fun perc_filter:make/1, List), Line, Rest}
+      fun({{List, Start, _}, Rest}) ->
+              Filters = [perc_filter:make(get_val(V)) || V <- List],
+              {{Filters, get_line(Start)}, Rest}
       end,
       Ret
      ).
 
--spec type(perc_scanner:tokens()) -> parse_result(perc_types:perc_type()).
 type(Tokens) ->
-    choice(
+    perc_combinators:alt_(
       [fun record_ref/1,
        fun type_application/1,
        fun usertype_ref_type/1,
@@ -257,29 +271,23 @@ type(Tokens) ->
       Tokens
      ).
 
--spec id(perc_scanner:tokens()) -> parse_result(string()).
 id(Tokens) ->
-    match(id, Tokens).
+    match_(id, Tokens).
 
--spec id_type(perc_scanner:tokens()) -> parse_result(perc_types:perc_type()).
 id_type(Tokens) ->
     either:chain(
       fun(Succ) -> make_type(Succ) end,
       id(Tokens)
      ).
 
--spec record_ref(perc_scanner:tokens()) -> parse_result(perc_types:perc_type()).
 record_ref(Tokens) ->
     Ret =
-        seq(
-          [fun(Toks) -> match(record, Toks) end,
-           fun(Toks) -> match('<', Toks) end,
-           fun id/1,
-           fun(Toks) -> match('>', Toks) end],
+        perc_combinators:seq_(
+          [match(record), match('<'), fun id/1, match('>')],
           Tokens
          ),
     either:chain(
-      fun({[_, _, {Name, Line, _}, _], Rest}) ->
+      fun({[_, _, {Name, Line}, _], Rest}) ->
             make_type({record, Name}, Line, Rest, [])
       end,
       Ret
@@ -287,15 +295,12 @@ record_ref(Tokens) ->
 
 usertype_ref(Tokens) ->
     Ret =
-        seq(
-          [fun(Toks) -> match(usertype, Toks) end,
-           fun(Toks) -> match('<', Toks) end,
-           fun id/1,
-           fun(Toks) -> match('>', Toks) end],
+        perc_combinators:seq_(
+          [match(usertype), match('<'), fun id/1, match('>')],
           Tokens
          ),
     either:apply(
-      fun({[_, _, {Name, Line, _}, _], Rest}) ->
+      fun({[_, _, {Name, Line}, _], Rest}) ->
               {{usertype, Name}, Line, Rest}
       end,
       Ret
@@ -309,224 +314,86 @@ usertype_ref_type(Tokens) ->
 
 type_application(Tokens) ->
     Ret =
-        seq(
-          [fun applicable/1,
-           fun args/1],
+        perc_combinators:seq_(
+          [fun applicable/1, fun args/1],
           Tokens
          ),
     either:chain(
-      fun({[{App, Line, _}, {Args, _, _}], Rest}) ->
+      fun({[{App, Line}, {Args, _}], Rest}) ->
               make_type(App, Line, Rest, Args)
       end,
       Ret
      ).
 
 applicable(Tokens) ->
-    choice(
+    perc_combinators:alt_(
       [fun id/1,
        fun usertype_ref/1,
-       fun function_ref/1
-      ],
+       fun function_ref/1],
       Tokens
      ).
 
 args(Tokens) ->
-    list(
-      fun type/1,
-      fun(Toks) -> match('(', Toks) end,
-      fun(Toks) -> match(',', Toks) end,
-      fun(Toks) -> match(')', Toks) end,
-      Tokens
+    Ret =
+        perc_combinators:list_strict_(
+          fun type/1,
+          match('('),
+          match(','),
+          match(')'),
+          Tokens
+         ),
+    either:apply(
+      fun({{List, Start, _}, Rest}) ->
+              {{lists:map(fun get_val/1, List), get_line(Start)}, Rest}
+      end,
+      Ret
      ).
 
 function_ref(Tokens) ->
-    Ret = seq(
-            [fun(Toks) -> match(function, Toks) end,
-             fun(Toks) -> match('<', Toks) end,
-             fun id_maybe/1,
-             fun(Toks) -> match(',', Toks) end,
-             fun id_maybe/1,
-             fun(Toks) -> match('>', Toks) end],
-            Tokens
-           ),
+    Ret =
+        perc_combinators:seq_(
+          [match(function),
+           match('<'),
+           fun id_maybe/1,
+           match(','),
+           fun id_maybe/1,
+           match('>')],
+          Tokens
+         ),
     either:apply(
-      fun({[{_, Line, _}, _, {NameA, _, _}, _, {NameB, _, _}, _], Rest}) ->
-              {{function, {NameA, NameB}}, Line, Rest}
+      fun({[{_, Line}, _, {NameA, _}, _, {NameB, _}, _], Rest}) ->
+              {{{function, {NameA, NameB}}, Line}, Rest}
       end,
       Ret
      ).
 
 id_maybe(Tokens) ->
-    choice([fun id/1, fun wildcard/1], Tokens).
+    perc_combinators:alt_([fun id/1, fun wildcard/1], Tokens).
 
 wildcard(Tokens) ->
     either:apply(
-      fun({_, Line, Rest}) ->
-              {undefined, Line, Rest}
+      fun({{_, Line}, Rest}) ->
+              {{undefined, Line}, Rest}
       end,
-      match(wildcard, Tokens)
+      match_(wildcard, Tokens)
      ).
-
-%% Ad-hoc (Slow) Parser combinators
-
-%% caller_name() ->
-%%     catch throw(away),
-%%     [_, _, Caller | _] = erlang:get_stacktrace(),
-%%     element(2, Caller).
-
--spec seq(
-        [parser(any())],
-        perc_scanner:tokens()
-       ) -> either:either(
-              parse_error(),
-              {[parse_success(any())], perc_scanner:tokens()}
-             ).
-seq(Funs, Tokens) ->
-    seq(Funs, Tokens, []).
-
--spec seq(
-        [parser(any())],
-        perc_parser:tokens(),
-        list()
-       ) -> either:either(
-              parse_error(),
-              {[parse_success(any())], perc_parser:tokens()}
-             ).
-seq([F|Funs], Tokens, Acc) ->
-    %% Caller = caller_name(),
-    %% io:format("trying ~p.seq ~p~n", [Caller, F]),
-    %% Ret = F(Tokens),
-    %% io:format("result of ~p.seq ~p is ~p~n", [Caller, F, Ret]),
-    either:chain(
-      fun(Succ = {_, _, Rest}) ->
-              seq(Funs, Rest, [Succ | Acc])
-      end,
-      F(Tokens)
-     );
-seq([], Tokens, Acc) ->
-    either:make_right({lists:reverse(Acc), Tokens}).
-
-
--spec choice([parser(V)], perc_parser:tokens()) -> parse_result(V).
-choice([F|Funs], Tokens) ->
-    choice([F|Funs], Tokens, []).
-
-choice([F|Funs], Tokens, ErrorsAcc) ->
-    %% Caller = caller_name(),
-    %% io:format("trying ~p.choice ~p~n", [Caller, F]),
-    Ret = F(Tokens),
-    %% io:format("result of ~p.choice ~p is ~p~n", [Caller, F, Ret]),
-    case either:is_right(Ret) of
-        true ->
-            Ret;
-        false ->
-            Errors = [either:get_left(Ret)|ErrorsAcc],
-            case Funs of
-                [] -> either:make_left(lists:reverse(Errors));
-                _-> choice(Funs, Tokens, Errors)
-            end
-    end.
-
-list(Fun, Start, Sep, End, Tokens) ->
-    choice(
-      [fun(Toks) -> empty_list(Start, End, Toks) end,
-       fun(Toks) -> nonempty_list(Fun, Start, Sep, End, Toks) end],
-      Tokens
-     ).
-
-empty_list(Start, End, Tokens) ->
-    Ret = seq([Start, End], Tokens),
-    either:apply(
-      fun({[{_, Line, _}, _], Rest}) ->
-              {[], Line, Rest}
-      end,
-      Ret
-     ).
-
--spec nonempty_list(
-        parser(A),
-        parser(any()),
-        parser(any()),
-        parser(any()),
-        perc_scanner:tokens()
-       ) -> parse_result(list(A)).
-nonempty_list(Fun, Start, Sep, End, Tokens) ->
-    Ret = seq([Start, Fun], Tokens),
-    either:chain(
-      fun({[{_, Line, _}, {Val, _, _}], Rest}) ->
-              list_rec(Fun, Sep, End, Rest, Line, [Val])
-      end,
-      Ret
-     ).
-
--spec list_rec(
-        parser(A),
-        parser(any()),
-        parser(any()),
-        perc_scanner:tokens(),
-        integer(),
-        [A]
-       ) -> parse_result([A]).
-list_rec(Fun, Sep, End, Tokens, Line, Acc) ->
-    EitherEnd = End(Tokens),
-    case either:get_either(EitherEnd) of
-        {right, {_, _, Rest}} ->
-            either:make_right({lists:reverse(Acc), Line, Rest});
-        {left, _} ->
-            Ret = seq([Sep, Fun], Tokens),
-            either:chain(
-              fun({[_, {Val, _, _}], Rest}) ->
-                      list_rec(Fun, Sep, End, Rest, Line, [Val | Acc])
-              end,
-              Ret
-             )
-    end.
-
--spec kleene(parser(A), perc_scanner:tokens()) -> parse_result(A).
-kleene(Fun, Tokens) ->
-    kleene_rec(Fun, Tokens, either:make_left(0), []).
-
-kleene_rec(Fun, Tokens, Line, Acc) ->
-    Ret = Fun(Tokens),
-    case either:get_either(Ret) of
-        {right, {Val, LineParsed, Rest}} ->
-            L = either:disjunction(Line, either:make_right(LineParsed)),
-            kleene_rec(Fun, Rest, L, [Val | Acc]);
-        {left, _} ->
-            either:make_right({Acc, either:unbox(Line), Tokens})
-    end.
-
-list_permissive(Fun, Start, Sep, End, Tokens) ->
-    list(
-      Fun,
-      Start,
-      Sep,
-      fun(Toks1) ->
-              Ret = seq([fun(Toks2) -> kleene(Sep, Toks2) end, End], Toks1),
-              either:apply(
-                fun({[{_, Line, _}, _], Rest}) ->
-                        {undefined, Line, Rest}
-                end,
-                Ret
-               )
-      end,
-      Tokens
-     ).
-
 
 %% Utils
 
-match(Category, [{Category, Line, Value} | Rest]) ->
-    either:make_right({Value, Line, Rest});
-match(Value, [{Value, Line} | Rest]) ->
-    either:make_right({Value, Line, Rest});
-match(Expected, [Token|_]) ->
+match(Val) ->
+    fun(Tokens) -> match_(Val, Tokens) end.
+
+match_(Category, [{Category, Line, Value} | Rest]) ->
+    either:make_right({{Value, Line}, Rest});
+match_(Value, [{Value, Line} | Rest]) ->
+    either:make_right({{Value, Line}, Rest});
+match_(Expected, [Token|_]) ->
     make_error(Token, Expected);
-match(Expected, []) ->
-    make_error("End of tokens", Expected, -1).
+match_(Expected, []) ->
+    make_error("End of tokens", Expected, undefined).
 
 eof([]) ->
-    either:make_right({undefined, undefined, []});
+    either:make_right({{undefined, undefined}, []});
 eof([Tok|_]) ->
     make_error(Tok, "End of tokens").
 
@@ -546,21 +413,20 @@ make_error(Token, Expected) ->
       perc_scanner:token_line(Token)
      ).
 
-
-%% Other functions
+many(Parser, Tokens) ->
+    either:apply(
+      fun({List, Rest}) ->
+              {{lists:map(fun get_val/1, List), line_from_tokens(Tokens)}, Rest}
+      end,
+      perc_combinators:many_(Parser, Tokens)
+     ).
 
 make_type(Succ) ->
     make_type(Succ, []).
 
-make_type({Id, Line, Rest}, Args) ->
+make_type({{Id, Line}, Rest}, Args) ->
     make_type(Id, Line, Rest, Args).
 
--spec make_type(
-        any(),
-        integer(),
-        perc_scanner:tokens(),
-        list()
-       ) -> parse_result(perc_types:perc_type()). 
 make_type(Id, Line, Rest, Args) ->
     Res =
         case {Id, Args} of
@@ -601,7 +467,7 @@ make_type(Id, Line, Rest, Args) ->
         true ->
             Res;
         _ ->
-            either:make_right({Res, Line, Rest})
+            either:make_right({{Res, Line}, Rest})
     end.
 
 make_field(Id, Proplist) ->

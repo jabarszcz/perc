@@ -252,6 +252,7 @@ gen_from_options(Opts) ->
     Inputs = proplists:get_all_values(in, Opts),
     RecordNames = proplists:get_all_values(record, Opts),
     UserTypeNames = proplists:get_all_values(usertype, Opts),
+    CodecName = proplists:get_value(erl_out, Opts),
     Backends =
         case lists:usort(proplists:get_all_values(backend, Opts)) of
             [] -> ["json"];
@@ -268,7 +269,7 @@ gen_from_options(Opts) ->
                   filename:extension(In) == ".perc"
           end,
           Inputs),
-    DefsA = perc_parse_erl:read_all(ErlInputs),
+    DefsA = perc_parse_erl:read_all(ErlInputs, CodecName),
     DefsAFilters = perc_filter:defs_add_automatic_filters(DefsA),
     DefsB =
         [begin
