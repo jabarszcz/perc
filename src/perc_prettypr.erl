@@ -52,10 +52,12 @@ format_record_field(Field) ->
 format_perc_type(Type) ->
     case perc_types:get_type(Type) of
         ignored ->
-            io_lib:format(
-              "ignored /* ~p */",
-              [perc_types:get_ignored_reason(Type)]
-              );
+            case perc_types:get_ignored_reason(Type) of
+                undefined ->
+                    "ignored";
+                Reason ->
+                    io_lib:format("ignored /* ~p */", [Reason])
+            end;
         undefined_atom ->
             "undefined";
         basic ->

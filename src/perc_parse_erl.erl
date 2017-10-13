@@ -81,7 +81,8 @@ analyse_record_form(Form, CodecName) ->
 analyse_usertype_form(Form) ->
     %% erl_syntax does not recognise type attributes well;
     %% Use the abstract form directly
-    {attribute, _, _, {TypeNameAtom, TypeTree, _Params}} = Form,
+    Abstract = erl_syntax:revert(Form),
+    {attribute, _, _, {TypeNameAtom, TypeTree, _Params}} = Abstract,
     perc_types:make_usertype_def(
       atom_to_list(TypeNameAtom),
       analyse_typetree(TypeTree)
@@ -197,16 +198,18 @@ analyse_record_field(FieldTree, CodecName) ->
                 perc_types:set_record_field_type(Field1, TypeVal)
         end,
     Field3 =
+        perc_filter:field_add_automatic_filters(Field2),
+    Field4 =
         case proplists:get_all_values(filters, CommentInfo) of
             [] ->
-                Field2;
+                Field3;
             Filters ->
                 perc_types:set_record_field_filters(
-                  Field2,
+                  Field3,
                   lists:append(Filters)
                  )
         end,
-    Field3.
+    Field4.
 
 %% TODO support the full list :
 %% http://erlang.org/doc/reference_manual/typespec.html

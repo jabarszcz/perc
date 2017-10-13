@@ -68,9 +68,10 @@ field_add_automatic_filters(Field) ->
         [perc_filter:filter()]
        ) -> {perc_types:perc_type(), [perc_filter:filter()]}.
 add_automatic_filters(Type, Filters) ->
-    {Type1, Filters1} = maybe_add_undef_filter(Type, Filters),
-    {Type2, Filters2} = maybe_add_empty_filter(Type1, Filters1),
-    {Type2, Filters2}.
+    {Type1, Filters1} = maybe_add_empty_obj_filter(Type, Filters),
+    {Type2, Filters2} = maybe_add_undef_filter(Type1, Filters1),
+    {Type3, Filters3} = maybe_add_empty_list_filter(Type2, Filters2),
+    {Type3, Filters3}.
 
 %%====================================================================
 %% Internal functions
@@ -92,10 +93,18 @@ maybe_add_undef_filter(Type, Filters) ->
             {Type, Filters}
     end.
 
-maybe_add_empty_filter(Type, Filters) ->
+maybe_add_empty_list_filter(Type, Filters) ->
     case has(Type, list) of
         true ->
             {Type, [make("no_empty_list") | Filters]};
+        _ ->
+            {Type, Filters}
+    end.
+
+maybe_add_empty_obj_filter(Type, Filters) ->
+    case has(Type, record) of
+        true ->
+            {Type, [make("no_empty_obj") | Filters]};
         _ ->
             {Type, Filters}
     end.

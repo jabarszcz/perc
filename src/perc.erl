@@ -210,6 +210,8 @@ get_defs_usertypes(Defs) ->
                          string()}].
 get_optspec() ->
     [
+     {name, $n, "name", string,
+      "The name of the codec for configuration"},
      {erl_out, $e, "erl-out", {string, "generated"},
       "The generated erlang module name"},
      {cpp_out, $c, "cpp-out", {string, "generated"},
@@ -252,7 +254,7 @@ gen_from_options(Opts) ->
     Inputs = proplists:get_all_values(in, Opts),
     RecordNames = proplists:get_all_values(record, Opts),
     UserTypeNames = proplists:get_all_values(usertype, Opts),
-    CodecName = proplists:get_value(erl_out, Opts),
+    CodecName = proplists:get_value(name, Opts),
     Backends =
         case lists:usort(proplists:get_all_values(backend, Opts)) of
             [] -> ["json"];
@@ -270,14 +272,13 @@ gen_from_options(Opts) ->
           end,
           Inputs),
     DefsA = perc_parse_erl:read_all(ErlInputs, CodecName),
-    DefsAFilters = perc_filter:defs_add_automatic_filters(DefsA),
     DefsB =
         [begin
              {ok, Tokens, _} = perc_scanner:file(F),
              {ok, Parsed} = perc_rparser:parse_defs(Tokens),
              Parsed
          end || F <- PercInputs],
-    Defs = merge_defs([DefsAFilters | DefsB]),
+    Defs = merge_defs([DefsA | DefsB]),
     #generator{
        inputs=Inputs,
        exported=Exported,
