@@ -3,68 +3,8 @@
 %% API exports
 -export([
     main/1,
-    generate_codecs/1,
-    get_gen_erl_out/1,
-    get_gen_sopath/1,
-    get_gen_appname/1,
-    get_gen_inputs/1,
-    get_gen_exported/1,
-    get_gen_record_defs/1,
-    get_gen_usertype_defs/1,
-    get_gen_backends/1,
-    get_gen_includes/1,
-    set_gen_defs/2,
-    make_defs/2,
-    merge_defs/1,
-    get_defs_records/1,
-    set_defs_records/2,
-    get_defs_usertypes/1,
-    get_optspec/0
+    generate_codecs/1
   ]).
-
--export_type([
-    option/0,
-    defs/0,
-    generator/0
-  ]).
-
-%%====================================================================
-% API Types
-%%====================================================================
-
--type option() :: {erl_out, string()}
-                | {cpp_out, string()}
-                | {appname, string()}
-                | {in, string()}
-                | {in_dir, string()}
-                | {cpp_dir, string()}
-                | {erl_dir, string()}
-                | {record, string()}
-                | {backend, string()}
-                | {cpp_flags, string()}
-                | compile | {compile, boolean()}
-                | beam | {beam, boolean()}
-                | load | {load, boolean()}
-                | so | {so, boolean()}
-                | graph | {graph, boolean()}
-                | {schema, string()}.
-
--record(defs, {
-          records = [] :: [perc_types:record_def()],
-          usertypes = [] :: [perc_types:usertype_def()]
-         }).
-
--opaque defs() :: #defs{}.
-
--record(generator, {
-    inputs :: [string()],
-    exported :: [perc_types:perc_type()],
-    defs :: defs(),
-    backends :: [atom()],
-    opts :: [option()]
- }).
-
--opaque generator() :: #generator{}.
 
 %%====================================================================
 %% API functions
@@ -73,7 +13,7 @@
 %% escript Entry point
 -spec main([string()]) -> no_return().
 main(Args) ->
-    OptSpec = get_optspec(),
+    OptSpec = perc_opts:optspec(),
     case getopt:parse(OptSpec, Args) of
         {ok, {Options, []}} ->
             Res = generate_codecs(Options),
@@ -93,184 +33,39 @@ main(Args) ->
 -spec generate_codecs(list()) -> ok | no_return().
 generate_codecs(Options) ->
     Gen = gen_from_options(Options),
-    case Gen#generator.exported of
+    case perc_opts:get_exported(Options) of
         [] ->
             ok;
         _ ->
             Reduced = perc_reduce:reduce(Gen),
             generate_nif(Reduced),
             generate_erl(Reduced),
-            case proplists:get_bool(graph, Options) of
+            case perc_opts:has_graph(Options) of
                 true -> save_graph(Reduced, "type_graph.png", "png");
                 _ -> ok
             end,
-            case proplists:get_value(schema, Options) of
+            case perc_opts:get_schema(Options) of
                 undefined -> ok;
                 Filename ->
-                    Defs = Reduced#generator.defs,
+                    Defs = perc_gen:get_defs(Reduced),
                     file:write_file(Filename, perc_prettypr:format(Defs))
             end,
             ok
     end.
 
--spec get_gen_erl_out(generator()) -> string().
-get_gen_erl_out(Gen) ->
-    proplists:get_value(erl_out, Gen#generator.opts, "generated").
-
--spec get_gen_sopath(generator()) -> string().
-get_gen_sopath(Gen) ->
-    Opts = Gen#generator.opts,
-    AppName = perc:get_gen_appname(Gen),
-    Dir = proplists:get_value(cpp_dir, Opts, "./priv"),
-    SoName = proplists:get_value(cpp_out, Opts, "generated"), % without ext
-    case AppName of
-        undefined ->
-            filename:join(Dir, SoName);
-        _ ->
-            AppAtom = list_to_atom(AppName),
-            case code:lib_dir(AppAtom) of
-                {error, bad_name} ->
-                    filename:join(Dir, SoName);
-                Root ->
-                    filename:join([Root, Dir, SoName])
-            end
-    end.
-
--spec get_gen_appname(generator()) -> string() | undefined.
-get_gen_appname(Gen) ->
-    proplists:get_value(appname, Gen#generator.opts).
-
--spec get_gen_inputs(generator()) -> [string()].
-get_gen_inputs(Gen) ->
-    Gen#generator.inputs.
-
--spec get_gen_exported(generator()) -> [perc_types:perc_type()].
-get_gen_exported(Gen) ->
-    Gen#generator.exported.
-
--spec get_gen_record_defs(generator()) -> [perc_types:record_def()].
-get_gen_record_defs(Gen) ->
-    Gen#generator.defs#defs.records.
-
--spec get_gen_usertype_defs(generator()) -> [perc_types:usertype_def()].
-get_gen_usertype_defs(Gen) ->
-    Gen#generator.defs#defs.usertypes.
-
--spec get_gen_backends(generator()) -> [atom()].
-get_gen_backends(Gen) ->
-    Gen#generator.backends.
-
--spec get_gen_includes(generator()) -> [string()].
-get_gen_includes(Gen) ->
-    proplists:get_all_values(include, Gen#generator.opts).
-
--spec set_gen_defs(generator(), defs()) -> generator().
-set_gen_defs(Gen, Defs) ->
-    Gen#generator{defs=Defs}.
-
--spec make_defs(
-        [perc_types:record_defs()],
-        [perc_types:usertype_defs()]
-       ) -> defs().
-make_defs(RecordDefs, UserTypeDefs) ->
-    #defs{
-       records=RecordDefs,
-       usertypes=UserTypeDefs
-      }.
-
--spec merge_defs([defs()]) -> defs().
-merge_defs(DefsList) ->
-    {RecordDefsLists, UserTypeDefsLists} =
-        lists:unzip(
-          [{RecDefs, UserDefs}
-           || #defs{records=RecDefs,
-                    usertypes=UserDefs} <- DefsList]
-         ),
-    RecordDefs = lists:append(RecordDefsLists),
-    UserTypeDefs = lists:append(UserTypeDefsLists),
-    #defs{records=RecordDefs,
-          usertypes=UserTypeDefs}.
-
--spec get_defs_records(defs()) -> [perc_types:record_def()].
-get_defs_records(Defs) ->
-    Defs#defs.records.
-
--spec set_defs_records(defs(), [perc_types:record_def()]) -> defs().
-set_defs_records(Defs, Records) ->
-    Defs#defs{records=Records}.
-
--spec get_defs_usertypes(defs()) -> [perc_types:usertype_def()].
-get_defs_usertypes(Defs) ->
-    Defs#defs.usertypes.
-
--spec get_optspec() -> [{atom(),
-                         integer(),
-                         string(),
-                         atom() | tuple(),
-                         string()}].
-get_optspec() ->
-    [
-     {name, $n, "name", string,
-      "The name of the codec for configuration"},
-     {erl_out, $e, "erl-out", {string, "generated"},
-      "The generated erlang module name"},
-     {cpp_out, $c, "cpp-out", {string, "generated"},
-      "The generated cpp file name (without ext.)"},
-     {in, $i , "in", string,
-      "An erlang file containing type and record definitions"},
-     {in_dir, undefined, "in-dir", {string, "."},
-      "The directory where the input files are"},
-     {cpp_dir, undefined, "cpp-dir", {string, "."},
-      "Where to put the cpp/so generated nif"},
-     {erl_dir, undefined, "erl-dir", {string, "."},
-      "Where to put the generated erlang module"},
-     {record, $r, "record", string,
-      "The records for which we want an encoding function"},
-     {usertype, $u, "usertype", string,
-      "The user types for which we want an encoding function"},
-     {backend, $b, "backend", {string, "json"},
-      "The codec backends (json, etc.)"},
-     {cpp_flags, undefined, "cpp-flags", string,
-      "Flags to pass to the c++ compiler if compiling"},
-     {compile, $C, "compile", boolean,
-      "Compile both the generated module and nif"},
-     {beam, undefined, "beam", boolean,
-      "Compile the erlang module"},
-     {so, undefined, "so", boolean,
-      "Compile the generated nif to a shared library"},
-     {graph, $g, "graph", boolean,
-      "Save the type graph"},
-     {schema, $s, "schema", string,
-      "Output the schema to a file"},
-     {include, undefined, "include", string,
-      ".h file to include in the generated native code"}
-    ].
-
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
+-spec gen_from_options(perc_opts:options()) -> perc_gen:gen().
 gen_from_options(Opts) ->
-    Inputs = proplists:get_all_values(in, Opts),
-    RecordNames = proplists:get_all_values(record, Opts),
-    UserTypeNames = proplists:get_all_values(usertype, Opts),
-    CodecName = proplists:get_value(name, Opts),
-    Backends =
-        case lists:usort(proplists:get_all_values(backend, Opts)) of
-            [] -> ["json"];
-            List -> List
-        end,
-    Records =
-        [perc_types:make_record(Name) || Name <- RecordNames],
-    UserTypes =
-        [perc_types:make_usertype(Name) || Name <- UserTypeNames],
-    Exported = Records ++ UserTypes,
     {PercInputs, ErlInputs} =
         lists:partition(
           fun(In) ->
                   filename:extension(In) == ".perc"
           end,
-          Inputs),
+          perc_opts:get_inputs(Opts)),
+    CodecName = perc_opts:get_codec_name(Opts),
     DefsA = perc_parse_erl:read_all(ErlInputs, CodecName),
     DefsB =
         [begin
@@ -278,41 +73,31 @@ gen_from_options(Opts) ->
              {ok, Parsed} = perc_rparser:parse_defs(Tokens),
              Parsed
          end || F <- PercInputs],
-    Defs = merge_defs([DefsA | DefsB]),
-    #generator{
-       inputs=Inputs,
-       exported=Exported,
-       defs=Defs,
-       backends=[perc_backend:backend_from_name(B) || B <- Backends],
-       opts=Opts
-      }.
+    Defs = perc_defs:merge([DefsA | DefsB]),
+    perc_gen:make(Defs, Opts).
 
 save_graph(Gen, Filename, Format) ->
-    RecordDefs = perc:get_gen_record_defs(Gen),
-    UserTypeDefs = perc:get_gen_usertype_defs(Gen),
+    Defs = perc_gen:get_defs(Gen),
+    RecordDefs = perc_defs:get_records(Defs),
+    UserTypeDefs = perc_defs:get_usertypes(Defs),
     Graph = perc_digraph:make(RecordDefs, UserTypeDefs),
     Ret = perc_digraph:save(Graph, Filename, Format),
     perc_digraph:delete(Graph),
     Ret.
 
--spec generate_nif(generator()) -> ok | no_return().
+-spec generate_nif(perc_gen:gen()) -> ok | no_return().
 generate_nif(Gen) ->
-    Opts = Gen#generator.opts,
+    Opts = perc_gen:get_opts(Gen),
     CppStr = perc_backend:generate_nif_source(Gen),
-    SoPath = perc:get_gen_sopath(Gen),
+    SoPath = perc_opts:get_sopath(Opts),
     ok = filelib:ensure_dir(SoPath),
-    Load = proplists:get_bool(load, Opts),
-    Compile =
-        proplists:get_bool(compile, Opts) or
-        proplists:get_bool(so, Opts) or
-        Load,
-    case Compile of
+    case perc_opts:has_compile_cpp(Opts) of
         true ->
             TempFile = lib:nonl(os:cmd("mktemp --suffix '.cpp'")),
             SoFile = io_lib:format("~s.so", [SoPath]),
             ErlNifIncludeDir = filename:join(code:root_dir(), "usr/include"),
             CIncludeDir = code:priv_dir(perc),
-            FlagsList = proplists:get_all_values(cpp_flags, Opts),
+            FlagsList = perc_opts:get_cpp_flags(Opts),
             Flags = string:join(FlagsList, " "),
             Cmd = io_lib:format(
                     "g++ -fvisibility=hidden -nodefaultlibs "
@@ -333,17 +118,13 @@ generate_nif(Gen) ->
             ok = file:write_file(File, CppStr)
     end.
 
--spec generate_erl(generator()) -> ok | no_return().
+-spec generate_erl(perc_gen:gen()) -> ok | no_return().
 generate_erl(Gen) ->
     ErlForms = perc_erl_gen:generate(Gen),
-    ErlDir = proplists:get_value(erl_dir, Gen#generator.opts, "."),
+    Opts = perc_gen:get_opts(Gen),
+    ErlDir = perc_opts:get_erl_dir(Opts),
     filelib:ensure_dir(ErlDir),
-    Load = proplists:get_bool(load, Gen#generator.opts),
-    Compile =
-        proplists:get_bool(compile, Gen#generator.opts) or
-        proplists:get_bool(beam, Gen#generator.opts) or
-        Load,
-    case Compile of
+    case perc_opts:has_compile_erl(Opts) of
         true ->
             {Module, Binary} =
                 case compile:forms(ErlForms) of
@@ -359,7 +140,7 @@ generate_erl(Gen) ->
                      io_lib:format("~s.beam", [Module])
                     ),
             ok = file:write_file(File, Binary),
-            case Load of
+            case perc_opts:has_load(Opts) of
                 true ->
                     {module, _} = code:load_abs(filename:join(ErlDir, Module)),
                     ok;
@@ -368,7 +149,7 @@ generate_erl(Gen) ->
             end;
         false ->
             Output = erl_prettypr:format(erl_syntax:form_list(ErlForms)),
-            ModuleName = get_gen_erl_out(Gen),
+            ModuleName = perc_opts:get_erl_out(Opts),
             File = filename:join(ErlDir, io_lib:format("~s.erl", [ModuleName])),
             ok = file:write_file(File, Output)
     end.

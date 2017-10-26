@@ -144,7 +144,7 @@ defs(Tokens) ->
     case either:get_right(Ret) of
         {{List, Line}, []} ->
             Defs =
-                perc:make_defs(
+                perc_defs:make(
                   lists:filter(fun perc_types:is_record_def/1, List),
                   lists:filter(fun perc_types:is_usertype_def/1, List)
                  ),

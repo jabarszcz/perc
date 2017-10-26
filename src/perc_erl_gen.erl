@@ -9,12 +9,13 @@
 %% API functions
 %%====================================================================
 
--spec generate(perc:generator()) -> iolist().
-generate(Generator) ->
+-spec generate(perc_gen:gen()) -> iolist().
+generate(Gen) ->
+    Opts = perc_gen:get_opts(Gen),
     ModuleAttr =
         erl_syntax:attribute(
           erl_syntax:atom(module),
-          [erl_syntax:atom(perc:get_gen_erl_out(Generator))]
+          [erl_syntax:atom(perc_opts:get_erl_out(Opts))]
          ),
     Init =
         erl_syntax:function(
@@ -26,7 +27,7 @@ generate(Generator) ->
                 erl_syntax:application(
                   erl_syntax:atom(erlang),
                   erl_syntax:atom(load_nif),
-                  [erl_syntax:string(perc:get_gen_sopath(Generator)),
+                  [erl_syntax:string(perc_opts:get_sopath(Opts)),
                    erl_syntax:integer(0)]
                  )
                )]
@@ -49,9 +50,9 @@ generate(Generator) ->
                 )]
              )]
           )
-         || RecName <- perc:get_gen_exported(Generator),
+         || RecName <- perc_opts:get_exported(Opts),
             Action <- ["encode"], %% TODO
-            Backend <- perc:get_gen_backends(Generator)],
+            Backend <- perc_opts:get_backends(Opts)],
     ExportAttrs =
         erl_syntax:attribute(
           erl_syntax:atom(export),

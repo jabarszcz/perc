@@ -13,11 +13,11 @@
 %% API functions
 %%====================================================================
 
--spec read(string()) -> perc:defs() | no_return().
+-spec read(string()) -> perc_defs:defs() | no_return().
 read(Filename) ->
     read(Filename, undefined).
 
--spec read(string(), string() | undefined) -> perc:defs() | no_return().
+-spec read(string(), string() | undefined) -> perc_defs:defs() | no_return().
 read(Filename, CodecName) ->
     Forms =
         case epp:parse_file(Filename, []) of
@@ -32,13 +32,14 @@ read(Filename, CodecName) ->
     Recommented = erl_recomment:recomment_forms(Forms, Comments),
     analyse_forms(Recommented, CodecName).
 
--spec read_all([string()]) -> perc:defs() | no_return().
+-spec read_all([string()]) -> perc_defs:defs() | no_return().
 read_all(Filenames) ->
     read_all(Filenames, undefined).
 
--spec read_all([string()], string() | undefined) -> perc:defs() | no_return().
+-spec read_all([string()], string() | undefined) ->
+                      perc_defs:defs() | no_return().
 read_all(Filenames, CodecName) ->
-    perc:merge_defs([read(Filename, CodecName) || Filename <- Filenames]).
+    perc_defs:merge([read(Filename, CodecName) || Filename <- Filenames]).
 
 %%====================================================================
 %% Internal functions
@@ -47,9 +48,9 @@ read_all(Filenames, CodecName) ->
 -spec analyse_forms(
         erl_syntax:syntaxtree(),
         string() | undefined
-       ) -> perc:defs().
+       ) -> perc_defs:defs().
 analyse_forms(FormList, CodecName) ->
-    perc:make_defs(
+    perc_defs:make(
       get_record_defs(FormList, CodecName),
       get_usertype_defs(FormList)
      ).

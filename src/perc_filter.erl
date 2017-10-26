@@ -37,12 +37,12 @@ make(Name) ->
     #filter{name=Name}.
 
 -spec defs_add_automatic_filters(
-        perc:defs()
-       ) -> perc:defs().
+        perc_defs:defs()
+       ) -> perc_defs:defs().
 defs_add_automatic_filters(Defs) ->
-    Records = perc:get_defs_records(Defs),
+    Records = perc_defs:get_records(Defs),
     NewRecords = [record_add_automatic_filters(R) || R <- Records],
-    perc:set_defs_records(Defs, NewRecords).
+    perc_defs:set_records(Defs, NewRecords).
 
 -spec record_add_automatic_filters(
         perc_types:record_def()

@@ -32,27 +32,29 @@ backend_from_name(Name) ->
          backends()
         )).
 
--spec generate_nif_source(perc:generator()) -> iolist().
-generate_nif_source(Generator) ->
-    Backends = perc:get_gen_backends(Generator),
-    Records = perc:get_gen_record_defs(Generator),
-    UserTypes = perc:get_gen_usertype_defs(Generator),
-    Includes = perc:get_gen_includes(Generator),
+-spec generate_nif_source(perc_gen:gen()) -> iolist().
+generate_nif_source(Gen) ->
+    Opts = perc_gen:get_opts(Gen),
+    Defs = perc_gen:get_defs(Gen),
+    Backends = perc_opts:get_backends(Opts),
+    Records = perc_defs:get_records(Defs),
+    UserTypes = perc_defs:get_usertypes(Defs),
+    Includes = perc_opts:get_includes(Opts),
     NifFuncs =
         [[{name, get_nif_function_name(Backend, "encode", Type)},
           {type_template, template(Type)},
           {defaultsize, "64"},
           {backend, Backend:name()}]
-         || Type <- perc:get_gen_exported(Generator),
+         || Type <- perc_opts:get_exported(Opts),
             Backend <- Backends],
     ModuleDict =
-        [{name, perc:get_gen_erl_out(Generator)},
+        [{name, perc_opts:get_erl_out(Opts)},
          {records, [record_id(R) || R <- Records]},
          {usertypes, [usertype_id(U) || U <- UserTypes]},
          {nif_funcs, NifFuncs}],
     BackendsDict =
         [[{name, Backend:name()},
-          {functions, functions(Backend, Generator)}]
+          {functions, functions(Backend, Defs)}]
          || Backend <- Backends],
     {ok, Source} =
         nif_source_dtl:render([{module, ModuleDict},
@@ -127,9 +129,9 @@ record_id(RecordDef) ->
 usertype_id(UserTypeDef) ->
     ["usertype_", perc_types:get_usertype_def_name(UserTypeDef)].
 
-functions(Backend, Generator) ->
-    Records = perc:get_gen_record_defs(Generator),
-    UserTypes = perc:get_gen_usertype_defs(Generator),
+functions(Backend, Defs) ->
+    Records = perc_defs:get_records(Defs),
+    UserTypes = perc_defs:get_usertypes(Defs),
     iolist_to_binary(
       [[Backend:gen_usertype_enc_func(UserType)
         || UserType <- UserTypes],

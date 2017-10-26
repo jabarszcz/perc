@@ -9,18 +9,18 @@
 % API functions
 %%====================================================================
 
--spec format(perc:defs()) -> iolist().
+-spec format(perc_defs:defs()) -> iolist().
 format(Defs) ->
     [[io_lib:format("usertype ~s :: ~s.~n~n",
                     [perc_types:get_usertype_def_name(U),
                      format_perc_type(
                        perc_types:get_usertype_def_type(U)
                       )
-                    ]) || U <- perc:get_defs_usertypes(Defs)],
+                    ]) || U <- perc_defs:get_usertypes(Defs)],
      [io_lib:format("record ~s :: ~s.~n~n",
                     [perc_types:get_record_def_name(R),
                      format_record_fields(R)
-                    ]) || R <- perc:get_defs_records(Defs)]
+                    ]) || R <- perc_defs:get_records(Defs)]
     ].
 
 %%====================================================================
