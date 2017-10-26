@@ -97,8 +97,7 @@ generate_nif(Gen) ->
             SoFile = io_lib:format("~s.so", [SoPath]),
             ErlNifIncludeDir = filename:join(code:root_dir(), "usr/include"),
             CIncludeDir = code:priv_dir(perc),
-            FlagsList = perc_opts:get_cpp_flags(Opts),
-            Flags = string:join(FlagsList, " "),
+            Flags = perc_opts:get_cpp_flags(Opts),
             Cmd = io_lib:format(
                     "g++ -fvisibility=hidden -nodefaultlibs "
                     "-o ~s -fpic -shared ~s -I ~s -I ~s -I . ~s",
