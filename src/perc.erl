@@ -126,7 +126,7 @@ generate_erl(Gen) ->
     case perc_opts:has_compile_erl(Opts) of
         true ->
             {Module, Binary} =
-                case compile:forms(ErlForms) of
+                case compile:forms(ErlForms, [debug_info]) of
                     {ok, ModuleName, Bin} when is_binary(Bin) ->
                         {ModuleName, Bin};
                     {ok, ModuleName, Bin, _Warn} when is_binary(Bin) ->

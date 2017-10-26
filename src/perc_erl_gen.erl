@@ -45,8 +45,9 @@ generate(Gen) ->
                erl_syntax:underscore()],
               none,
               [erl_syntax:application(
-                 none, erl_syntax:atom(throw),
-                 [erl_syntax:atom(undefined)]
+                 erl_syntax:atom(erlang),
+                 erl_syntax:atom(nif_error),
+                 [erl_syntax:atom(nif_not_loaded)]
                 )]
              )]
           )
