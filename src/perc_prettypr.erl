@@ -12,13 +12,13 @@
 -spec format(perc_defs:defs()) -> iolist().
 format(Defs) ->
     [[io_lib:format("usertype ~s :: ~s.~n~n",
-                    [perc_types:get_usertype_def_name(U),
+                    [perc_defs:get_usertype_def_name(U),
                      format_perc_type(
-                       perc_types:get_usertype_def_type(U)
+                       perc_defs:get_usertype_def_type(U)
                       )
                     ]) || U <- perc_defs:get_usertypes(Defs)],
      [io_lib:format("record ~s :: ~s.~n~n",
-                    [perc_types:get_record_def_name(R),
+                    [perc_defs:get_record_def_name(R),
                      format_record_fields(R)
                     ]) || R <- perc_defs:get_records(Defs)]
     ].
@@ -30,16 +30,16 @@ format(Defs) ->
 format_record_fields(RecordDef) ->
     ["{\n",
      [format_record_field(F)
-      || F <- perc_types:get_record_def_fields(RecordDef)],
+      || F <- perc_defs:get_record_def_fields(RecordDef)],
      "}"].
 
 format_record_field(Field) ->
-    Name = perc_types:get_record_field_name(Field),
+    Name = perc_defs:get_record_field_name(Field),
     TypeStr =
         format_perc_type(
-          perc_types:get_record_field_type(Field)
+          perc_defs:get_record_field_type(Field)
          ),
-    Filters = perc_types:get_record_field_filters(Field),
+    Filters = perc_defs:get_record_field_filters(Field),
     case Filters of
         [] ->
             io_lib:format("    ~s :: ~s,~n", [Name, TypeStr]);

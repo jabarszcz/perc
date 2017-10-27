@@ -37,14 +37,14 @@ reduce_deps(Gen) ->
     NewRecords =
         [R || R <- RecordDefs,
               sets:is_element(
-                perc_types:make_record(perc_types:get_record_def_name(R)),
+                perc_types:make_record(perc_defs:get_record_def_name(R)),
                 DepsSet
                )
         ],
     NewUserTypes =
         [U || U <- UserTypeDefs,
               sets:is_element(
-                perc_types:make_usertype(perc_types:get_usertype_def_name(U)),
+                perc_types:make_usertype(perc_defs:get_usertype_def_name(U)),
                 DepsSet
                )
         ],
@@ -83,7 +83,7 @@ reduce_usertypes(Gen) ->
     Graph = perc_digraph:make(Records, UserTypes),
     UserTypeDict =
         dict:from_list(
-          [{perc_types:make_usertype(perc_types:get_usertype_def_name(U)), U}
+          [{perc_types:make_usertype(perc_defs:get_usertype_def_name(U)), U}
           || U <- UserTypes]
          ),
     Subs = perc_digraph:make_substitutions(Graph, UserTypeDict),
@@ -97,30 +97,30 @@ reduce_usertypes(Gen) ->
 
 -spec reduce_types_in_record(
         fun((perc_types:perc_type()) -> perc_types:perc_type()),
-        perc_types:record_def()
-       ) -> perc_types:record_def().
+        perc_defs:record_def()
+       ) -> perc_defs:record_def().
 reduce_types_in_record(Fun, RecordDef) ->
-    Fields = perc_types:get_record_def_fields(RecordDef),
+    Fields = perc_defs:get_record_def_fields(RecordDef),
     NewFields = [reduce_types_in_field(Fun, F) || F <- Fields],
-    perc_types:set_record_def_fields(RecordDef, NewFields).
+    perc_defs:set_record_def_fields(RecordDef, NewFields).
 
 -spec reduce_types_in_field(
         fun((perc_types:perc_type()) -> perc_types:perc_type()),
-        perc_types:record_field()
-       ) -> perc_types:record_field().
+        perc_defs:record_field()
+       ) -> perc_defs:record_field().
 reduce_types_in_field(Fun, Field) ->
-    Type = perc_types:get_record_field_type(Field),
+    Type = perc_defs:get_record_field_type(Field),
     NewType = Fun(Type),
-    perc_types:set_record_field_type(Field, NewType).
+    perc_defs:set_record_field_type(Field, NewType).
 
 -spec reduce_types_in_usertype(
         fun((perc_types:perc_type()) -> perc_types:perc_type()),
-        perc_types:usertype_def()
-       ) -> perc_types:usertype_def().
+        perc_defs:usertype_def()
+       ) -> perc_defs:usertype_def().
 reduce_types_in_usertype(Fun, UserTypeDef) ->
-    Type = perc_types:get_usertype_def_type(UserTypeDef),
+    Type = perc_defs:get_usertype_def_type(UserTypeDef),
     NewType = Fun(Type),
-    perc_types:set_usertype_def_type(UserTypeDef, NewType).
+    perc_defs:set_usertype_def_type(UserTypeDef, NewType).
 
 -spec reduce_unions_in_type(perc_types:perc_type()) -> perc_types:perc_types().
 reduce_unions_in_type(Type) ->

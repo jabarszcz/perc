@@ -19,10 +19,10 @@
 name() ->
     "json".
 
--spec gen_record_enc_func(perc_types:record_def()) -> iolist().
+-spec gen_record_enc_func(perc_defs:record_def()) -> iolist().
 gen_record_enc_func(RecordDef) ->
-    RecordName = perc_types:get_record_def_name(RecordDef),
-    Fields = perc_types:get_record_def_fields(RecordDef),
+    RecordName = perc_defs:get_record_def_name(RecordDef),
+    Fields = perc_defs:get_record_def_fields(RecordDef),
     RecordType = perc_types:make_record(RecordName),
     Dict =
         [{name, RecordName},
@@ -32,10 +32,10 @@ gen_record_enc_func(RecordDef) ->
     {ok, Source} = json_encode_record_dtl:render(Dict),
     Source.
 
--spec gen_usertype_enc_func(perc_types:usertype_def()) -> iolist().
+-spec gen_usertype_enc_func(perc_defs:usertype_def()) -> iolist().
 gen_usertype_enc_func(UserTypeDef) ->
-    UserTypeName = perc_types:get_usertype_def_name(UserTypeDef),
-    UserTypeType = perc_types:get_usertype_def_type(UserTypeDef),
+    UserTypeName = perc_defs:get_usertype_def_name(UserTypeDef),
+    UserTypeType = perc_defs:get_usertype_def_type(UserTypeDef),
     UserType = perc_types:make_usertype(UserTypeName),
     Dict = [{name_template, perc_backend:template(UserType)},
             {type_template, perc_backend:template(UserTypeType)}],
@@ -47,7 +47,7 @@ gen_usertype_enc_func(UserTypeDef) ->
 %%====================================================================
 
 field_dict(Field, Index) ->
-    Type = perc_types:get_record_field_type(Field),
+    Type = perc_defs:get_record_field_type(Field),
     TypeVals =
         case perc_types:get_type(Type) of
             ignored ->
@@ -65,7 +65,7 @@ field_dict(Field, Index) ->
                 [{type_template, perc_backend:template(Type)}]
         end,
     FilterVals =
-        case perc_types:get_record_field_filters(Field) of
+        case perc_defs:get_record_field_filters(Field) of
             [] -> [];
             Filters ->
                 [{filters, [perc_filter:get_name(F)
@@ -75,10 +75,10 @@ field_dict(Field, Index) ->
     EmptyObjFilter =
         lists:any(fun (Filter) ->
                           perc_filter:get_name(Filter) == ?EMPTY_OBJ_FILTER
-                  end, perc_types:get_record_field_filters(Field)),
+                  end, perc_defs:get_record_field_filters(Field)),
     lists:append(
       [TypeVals, FilterVals,
-       [{name, perc_types:get_record_field_name(Field)},
+       [{name, perc_defs:get_record_field_name(Field)},
         {index, Index},
         {no_empty_obj, EmptyObjFilter}]
       ]).

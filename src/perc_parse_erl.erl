@@ -77,14 +77,14 @@ analyse_record_form(Form, CodecName) ->
     Fields =
         [analyse_record_field(FieldTree, CodecName)
          || FieldTree <- erl_syntax:tuple_elements(FieldsTree)],
-    perc_types:make_record_def(Name, Fields).
+    perc_defs:make_record_def(Name, Fields).
 
 analyse_usertype_form(Form) ->
     %% erl_syntax does not recognise type attributes well;
     %% Use the abstract form directly
     Abstract = erl_syntax:revert(Form),
     {attribute, _, _, {TypeNameAtom, TypeTree, _Params}} = Abstract,
-    perc_types:make_usertype_def(
+    perc_defs:make_usertype_def(
       atom_to_list(TypeNameAtom),
       analyse_typetree(TypeTree)
      ).
@@ -180,13 +180,13 @@ analyse_record_field(FieldTree, CodecName) ->
                     analyse_typetree(
                       erl_syntax:typed_record_field_type(FieldTree)
                      ),
-                perc_types:make_record_field(Name, Type);
+                perc_defs:make_record_field(Name, Type);
             record_field ->
                 Name =
                     erl_syntax:atom_name(
                       erl_syntax:record_field_name(FieldTree)
                      ),
-                perc_types:make_record_field(
+                perc_defs:make_record_field(
                   Name,
                   perc_types:make_ignored(untyped_field)
                  )
@@ -196,7 +196,7 @@ analyse_record_field(FieldTree, CodecName) ->
             undefined ->
                 Field1;
             TypeVal ->
-                perc_types:set_record_field_type(Field1, TypeVal)
+                perc_defs:set_record_field_type(Field1, TypeVal)
         end,
     Field3 =
         perc_filter:field_add_automatic_filters(Field2),
@@ -205,7 +205,7 @@ analyse_record_field(FieldTree, CodecName) ->
             [] ->
                 Field3;
             Filters ->
-                perc_types:set_record_field_filters(
+                perc_defs:set_record_field_filters(
                   Field3,
                   lists:append(Filters)
                  )

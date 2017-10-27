@@ -12,8 +12,8 @@
 
 %% Behaviour definition
 -callback name() -> string().
--callback gen_record_enc_func(perc_types:record_def()) -> iolist().
--callback gen_usertype_enc_func(perc_types:usertype_def()) -> iolist().
+-callback gen_record_enc_func(perc_defs:record_def()) -> iolist().
+-callback gen_usertype_enc_func(perc_defs:usertype_def()) -> iolist().
 
 %%====================================================================
 %% API functions
@@ -121,13 +121,13 @@ type_to_id(Type) ->
 %% Internal functions
 %%====================================================================
 
--spec record_id(perc_types:record_def()) -> iolist().
+-spec record_id(perc_defs:record_def()) -> iolist().
 record_id(RecordDef) ->
-    ["record_", perc_types:get_record_def_name(RecordDef)].
+    ["record_", perc_defs:get_record_def_name(RecordDef)].
 
--spec usertype_id(perc_types:usertype_def()) -> iolist().
+-spec usertype_id(perc_defs:usertype_def()) -> iolist().
 usertype_id(UserTypeDef) ->
-    ["usertype_", perc_types:get_usertype_def_name(UserTypeDef)].
+    ["usertype_", perc_defs:get_usertype_def_name(UserTypeDef)].
 
 functions(Backend, Defs) ->
     Records = perc_defs:get_records(Defs),

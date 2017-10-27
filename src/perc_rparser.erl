@@ -145,8 +145,8 @@ defs(Tokens) ->
         {{List, Line}, []} ->
             Defs =
                 perc_defs:make(
-                  lists:filter(fun perc_types:is_record_def/1, List),
-                  lists:filter(fun perc_types:is_usertype_def/1, List)
+                  lists:filter(fun perc_defs:is_record_def/1, List),
+                  lists:filter(fun perc_defs:is_usertype_def/1, List)
                  ),
             either:make_right({{Defs, Line}, []});
         {{_, _}, Toks} ->
@@ -164,7 +164,7 @@ record_def(Tokens) ->
            ),
     either:apply(
       fun({[_, {Id, Line}, _, {Fields, _}, _], Rest}) ->
-              {{perc_types:make_record_def(Id, Fields), Line}, Rest}
+              {{perc_defs:make_record_def(Id, Fields), Line}, Rest}
       end,
       Ret
      ).
@@ -180,7 +180,7 @@ usertype_def(Tokens) ->
            ),
     either:apply(
       fun({[_, {Id, Line}, _, {Type, _}, _], Rest}) ->
-              {{perc_types:make_record_def(Id, Type), Line}, Rest}
+              {{perc_defs:make_record_def(Id, Type), Line}, Rest}
       end,
       Ret
      ).
@@ -473,4 +473,4 @@ make_type(Id, Line, Rest, Args) ->
 make_field(Id, Proplist) ->
     Type = proplists:get_value(type, Proplist, perc_types:make_ignored()),
     Filters = proplists:get_all_values(filters, Proplist),
-    perc_types:make_record_field(Id, Type, lists:append(Filters)).
+    perc_defs:make_record_field(Id, Type, lists:append(Filters)).

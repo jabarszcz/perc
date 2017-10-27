@@ -39,8 +39,8 @@
 %%====================================================================
 
 -spec make(
-        [perc_types:record_def()],
-        [perc_types:usertype_def()]
+        [perc_defs:record_def()],
+        [perc_defs:usertype_def()]
        ) -> state().
 make(Records, UserTypes) ->
     State1 = #state{},
@@ -88,7 +88,7 @@ compute_deps(State, Exported) ->
         state(),
         dict:dict(
           perc_types:perc_type(),
-          perc_types:usertype_def()
+          perc_defs:usertype_def()
          )
        ) -> substitutions().
 make_substitutions(State, UserTypeDict) ->
@@ -126,7 +126,7 @@ save(State, Filename, Format) ->
 %%====================================================================
 
 make_substitutions(UserTypeDict, [T|Ts], Subs) ->
-    Def = perc_types:get_usertype_def_type(dict:fetch(T, UserTypeDict)),
+    Def = perc_defs:get_usertype_def_type(dict:fetch(T, UserTypeDict)),
     Reduced = reduce_usertypes(Def, Subs),
     NewSubs = dict:store(T, Reduced, Subs),
     make_substitutions(UserTypeDict, Ts, NewSubs);
@@ -160,21 +160,21 @@ add_norec_graph(State) ->
     digraph:del_vertices(Graph, RecVertices),
     State#state{norec_graph=Graph}.
 
--spec add_record(perc_types:record_def(), state()) -> state().
+-spec add_record(perc_defs:record_def(), state()) -> state().
 add_record(RecordDef, State) ->
-    Name = perc_types:get_record_def_name(RecordDef),
-    Fields = perc_types:get_record_def_fields(RecordDef),
-    Types = [perc_types:get_record_field_type(Field) || Field <- Fields],
+    Name = perc_defs:get_record_def_name(RecordDef),
+    Fields = perc_defs:get_record_def_fields(RecordDef),
+    Types = [perc_defs:get_record_field_type(Field) || Field <- Fields],
     Label = perc_types:make_record(Name),
     {RecordVertex, NewState} = ensure_vertex(Label, State),
     lists:foldl(fun(Type_, State_) ->
                         add_perc_type(RecordVertex, Type_, State_)
                 end, NewState, Types).
 
--spec add_usertype(perc_types:usertype_def(), state()) -> state().
+-spec add_usertype(perc_defs:usertype_def(), state()) -> state().
 add_usertype(UserTypeDef, State) ->
-    Name = perc_types:get_usertype_def_name(UserTypeDef),
-    Type = perc_types:get_usertype_def_type(UserTypeDef),
+    Name = perc_defs:get_usertype_def_name(UserTypeDef),
+    Type = perc_defs:get_usertype_def_type(UserTypeDef),
     Label = perc_types:make_usertype(Name),
     {UserTypeVertex, NewState} = ensure_vertex(Label, State),
     add_perc_type(UserTypeVertex, Type, NewState).

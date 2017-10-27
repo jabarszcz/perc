@@ -16,15 +16,6 @@
     get_usertype_name/1,
     get_function_names/1,
     get_function_arg/1,
-    get_record_def_name/1,
-    get_record_def_fields/1,
-    get_record_field_name/1,
-    get_record_field_type/1,
-    get_record_field_filters/1,
-    get_usertype_def_name/1,
-    get_usertype_def_type/1,
-    is_record_def/1,
-    is_usertype_def/1,
     make_ignored/0,
     make_ignored/1,
     make_undefined_atom/0,
@@ -34,22 +25,11 @@
     make_union/1,
     make_record/1,
     make_usertype/1,
-    make_function/2,
-    make_record_def/2,
-    make_record_field/2,
-    make_record_field/3,
-    make_usertype_def/2,
-    set_record_def_fields/2,
-    set_record_field_type/2,
-    set_record_field_filters/2,
-    set_usertype_def_type/2
+    make_function/2
   ]).
 
 -export_type([
-    perc_type/0,
-    record_field/0,
-    record_def/0,
-    usertype_def/0
+    perc_type/0
   ]).
 
 %%====================================================================
@@ -86,28 +66,6 @@
                           {undefined | string(),
                            undefined | string()},
                           perc_type()}.
-
--record(record_field, {
-          name :: undefined | string(),
-          type :: undefined | perc_types:perc_type(),
-          filters = [] :: [perc_filter:filter()]
-         }).
-
--opaque record_field() :: #record_field{}.
-
--record(record_def, {
-          name :: undefined | string(),
-          fields = [] :: [#record_field{}]
-         }).
-
--opaque record_def() :: #record_def{}.
-
--record(usertype_def, {
-          name :: undefined | string(),
-          type :: undefined | perc_types:perc_type()
-         }).
-
--opaque usertype_def() :: #usertype_def{}.
 
 %%====================================================================
 % API functions
@@ -165,46 +123,6 @@ get_function_names({function, {Enc, Dec}, _}) ->
 get_function_arg({function, {_, _}, Arg}) ->
     Arg.
 
--spec get_record_def_name(record_def()) -> string().
-get_record_def_name(RecordDef) ->
-    RecordDef#record_def.name.
-
--spec get_record_def_fields(record_def()) -> [record_field()].
-get_record_def_fields(RecordDef) ->
-    RecordDef#record_def.fields.
-
--spec get_record_field_name(record_field()) -> string().
-get_record_field_name(Field) ->
-    Field#record_field.name.
-
--spec get_record_field_type(record_field()) -> perc_type().
-get_record_field_type(Field) ->
-    Field#record_field.type.
-
--spec get_record_field_filters(record_field()) -> [perc_filter:filter()].
-get_record_field_filters(Field) ->
-    Field#record_field.filters.
-
--spec get_usertype_def_name(usertype_def()) -> string().
-get_usertype_def_name(UserType) ->
-    UserType#usertype_def.name.
-
--spec get_usertype_def_type(usertype_def()) -> perc_type().
-get_usertype_def_type(UserType) ->
-    UserType#usertype_def.type.
-
--spec is_record_def(any()) -> boolean().
-is_record_def(#record_def{} = _) ->
-    true;
-is_record_def(_) ->
-    false.
-
--spec is_usertype_def(any()) -> boolean().
-is_usertype_def(#usertype_def{} = _) ->
-    true;
-is_usertype_def(_) ->
-    false.
-
 -spec make_ignored() -> perc_type().
 make_ignored() ->
     ignored.
@@ -244,46 +162,6 @@ make_usertype(Name) ->
 -spec make_function({string(), string()}, perc_type()) -> perc_type().
 make_function({Enc, Dec}, Arg) ->
     {function, {Enc, Dec}, Arg}.
-
--spec make_record_def(string(), [record_field()]) -> record_def().
-make_record_def(Name, Fields) ->
-    #record_def{name = Name, fields = Fields}.
-
--spec make_record_field(undefined | string(), perc_type()) -> record_field().
-make_record_field(Name, Type) ->
-    #record_field{name = Name, type = Type}.
-
--spec make_record_field(
-        undefined | string(),
-        perc_type(),
-        [perc_filter:filter()]
-       ) -> record_field().
-make_record_field(Name, Type, Filters) ->
-    #record_field{name = Name, type = Type, filters=Filters}.
-
--spec make_usertype_def(string(), perc_type()) -> usertype_def().
-make_usertype_def(Name, Type) ->
-    #usertype_def{name = Name, type = Type}.
-
--spec set_record_def_fields(record_def(), [record_field()]) ->
-                                   record_def().
-set_record_def_fields(RecordDef, Fields) ->
-    RecordDef#record_def{fields=Fields}.
-
--spec set_record_field_type(record_field(), perc_types:perc_type()) ->
-                                   record_field().
-set_record_field_type(RecordField, Type) ->
-    RecordField#record_field{type=Type}.
-
--spec set_record_field_filters(record_field(), [perc_filter:filter()]) ->
-                                   record_field().
-set_record_field_filters(RecordField, Filters) ->
-    RecordField#record_field{filters=Filters}.
-
--spec set_usertype_def_type(usertype_def(), perc_types:perc_type()) ->
-                                   usertype_def().
-set_usertype_def_type(UserTypeDef, Type) ->
-    UserTypeDef#usertype_def{type=Type}.
 
 %% Type tree higher-order functions
 

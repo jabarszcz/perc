@@ -45,22 +45,22 @@ defs_add_automatic_filters(Defs) ->
     perc_defs:set_records(Defs, NewRecords).
 
 -spec record_add_automatic_filters(
-        perc_types:record_def()
-       ) -> perc_types:record_def().
+        perc_defs:record_def()
+       ) -> perc_defs:record_def().
 record_add_automatic_filters(Record) ->
-    Fields = perc_types:get_record_def_fields(Record),
+    Fields = perc_defs:get_record_def_fields(Record),
     NewFields = [field_add_automatic_filters(F) || F <- Fields],
-    perc_types:set_record_def_fields(Record, NewFields).
+    perc_defs:set_record_def_fields(Record, NewFields).
 
 -spec field_add_automatic_filters(
-        perc_types:record_field()
-       ) -> perc_types:record_field().
+        perc_defs:record_field()
+       ) -> perc_defs:record_field().
 field_add_automatic_filters(Field) ->
-    Type = perc_types:get_record_field_type(Field),
-    Filters = perc_types:get_record_field_filters(Field),
+    Type = perc_defs:get_record_field_type(Field),
+    Filters = perc_defs:get_record_field_filters(Field),
     {Type1, Filters1} = add_automatic_filters(Type, Filters),
-    Field1 = perc_types:set_record_field_type(Field, Type1),
-    Field2 = perc_types:set_record_field_filters(Field1, Filters1),
+    Field1 = perc_defs:set_record_field_type(Field, Type1),
+    Field2 = perc_defs:set_record_field_filters(Field1, Filters1),
     Field2.
 
 -spec add_automatic_filters(
