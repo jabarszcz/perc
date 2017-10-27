@@ -1,6 +1,9 @@
 #ifndef _PERC_JSON_H_
 #define _PERC_JSON_H_
 
+#include <stdbool.h>
+#include <stddef.h>
+
 #include "perc_encode.h"
 
 #define INT_FMT "%ld"
@@ -9,7 +12,7 @@
 static inline
 int json_enc_undefined(struct encoder *e, ERL_NIF_TERM term)
 {
-        return ENC_LITERAL(e, "null")? 1 : -1;
+	return ENC_LITERAL(e, "null")? 1 : -1;
 }
 
 static inline
@@ -20,7 +23,7 @@ int json_enc_integer(struct encoder *e, ERL_NIF_TERM term)
 	if (!enif_get_int64(e->env, term, &val))
 		return -1;
 
-	unsigned int cap = capacity(e);
+	size_t cap = capacity(e);
 
 	if (!cap) {
 		if (!ensure(e, 32))
@@ -49,7 +52,7 @@ int json_enc_float(struct encoder *e, ERL_NIF_TERM term)
 	if (!enif_get_double(e->env, term, &val))
 		return -1;
 
-	unsigned int cap = capacity(e);
+	size_t cap = capacity(e);
 
 	if (!cap) {
 		if (!ensure(e, 32))
@@ -70,10 +73,10 @@ int json_enc_float(struct encoder *e, ERL_NIF_TERM term)
 }
 
 static inline
-int json_enc_escape_buf(struct encoder *e, const char *buf, unsigned int len)
+int json_enc_escape_buf(struct encoder *e, const char *buf, size_t len)
 {
-	unsigned int index = e->index, last = 0;
-	for (unsigned int i = 0; i < len; ++i) {
+	size_t index = e->index, last = 0;
+	for (size_t i = 0; i < len; ++i) {
 		if (buf[i] == '\\' || buf[i] == '\"') {
 			if (!enc_buf(e, &buf[last], i-last))
 				goto fail;
@@ -107,8 +110,8 @@ fail:
 static inline
 int json_enc_atom(struct encoder *e, ERL_NIF_TERM term)
 {
-	unsigned int len, index = e->index;
-	int ret = 0;
+	unsigned int len;
+	size_t index = e->index;
 	char atom[512];
 
 	if (!enif_get_atom_length(e->env, term, &len, ERL_NIF_LATIN1))
@@ -132,7 +135,7 @@ static inline
 int json_enc_binary(struct encoder *e, ERL_NIF_TERM term)
 {
 	ErlNifBinary bin;
-	unsigned int index = e->index;
+	size_t index = e->index;
 	if (!enif_inspect_binary(e->env, term, &bin))
 		return -1;
 	if (!ENC_LITERAL(e, "\""))
@@ -150,7 +153,8 @@ fail:
 static inline
 int json_enc_string(struct encoder *e, ERL_NIF_TERM term)
 {
-	unsigned int len, index = e->index;
+	unsigned int len;
+	size_t index = e->index;
 	int ret = 0;
 
 	if (!enif_get_list_length(e->env, term, &len))
@@ -197,12 +201,12 @@ int json_enc_end_obj(struct encoder *e)
 }
 
 static inline
-int json_enc_key(struct encoder *e, int &first,
-		 const char *string, unsigned int len)
+int json_enc_key(struct encoder *e, bool &is_first,
+		 const char *string, size_t len)
 {
 	int ret;
-	if (first) {
-		first = 0;
+	if (is_first) {
+		is_first = false;
 		ret = ENC_LITERAL(e, "\"");
 	} else {
 		ret = ENC_LITERAL(e, ",\"");
@@ -211,8 +215,8 @@ int json_enc_key(struct encoder *e, int &first,
 }
 
 
-#define JSON_ENC_KEY(e, first, field_string) \
-	json_enc_key(e, first, field_string, sizeof(field_string)-1)
+#define JSON_ENC_KEY(e, is_first, field_string) \
+	json_enc_key(e, is_first, field_string, sizeof(field_string)-1)
 
 // Filters
 struct data {

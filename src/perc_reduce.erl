@@ -1,5 +1,7 @@
 -module(perc_reduce).
 
+-include_lib("stdlib/include/assert.hrl").
+
 %% API exports
 -export([
     reduce/1
@@ -137,7 +139,7 @@ join_types(Types) ->
 
 join_types([], Set) ->
     case sets:size(Set) of
-        0 -> perc_types:make_ignored(empty_union_bug);
+        0 -> ?assertNotEqual(0, sets:size(Set));
         1 -> hd(sets:to_list(Set));
         _ -> perc_types:make_union(sets:to_list(Set))
     end;

@@ -50,18 +50,19 @@ struct json_encoder<List<T>> {
 		if (!enif_is_list(e->env, term))
 			return -1;
 
-		unsigned int index = e->index;
+		size_t index = e->index;
 		if (!ENC_LITERAL(e, "["))
 			return -1;
 
 		ERL_NIF_TERM head, tail=term;
-		int first = 1;
+		bool is_first = true;
 		while(enif_get_list_cell(e->env, tail, &head, &tail)) {
-			if (first)
-				first = 0;
-			else
+			if (is_first) {
+				is_first = false;
+			} else {
 				if (!ENC_LITERAL(e, ","))
 					goto fail;
+			}
 			if (json_encoder<T>::encode(e, head) < 0)
 				goto fail;
 		}
@@ -106,7 +107,7 @@ struct json_encoder<Tuple<Ts...>> {
 	static int encode(struct encoder *e, ERL_NIF_TERM term) {
 		int arity;
 		const ERL_NIF_TERM *fields;
-		unsigned int index = e->index;
+		size_t index = e->index;
 		if (!enif_get_tuple(e->env, term, &arity, &fields))
 			return -1;
 		if (!json_enc_tuple_rec<0, Ts...>(e, fields)) {

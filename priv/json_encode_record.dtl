@@ -4,8 +4,9 @@ int json_encoder<{{ name_template }}>::encode(
     struct encoder *e,
     const ERL_NIF_TERM term)
 {% templatetag openbrace %}
-    unsigned int index = e->index;
-    int first=1, arity, encoded=0;
+    size_t index = e->index;
+    bool is_first=true;
+    int arity, n_encoded=0;
     const ERL_NIF_TERM *fields;
     if (!enif_get_tuple(e->env, term, &arity, &fields))
         goto fail;
@@ -19,11 +20,11 @@ int json_encoder<{{ name_template }}>::encode(
     {% for line in field.ignored_reason_lines %}
     // {{ line }}{% endfor %}
 {% else %}
-    if (1{% for filter in field.filters %}
+    if (true{% for filter in field.filters %}
       && {{ filter }}(e->env, fields[{{ field.index }}], e->opts){% endfor %}
       ) {
-        int before_field_idx = e->index;
-        if (!JSON_ENC_KEY(e, first, "{{ field.name }}"))
+        size_t before_field_idx = e->index;
+        if (!JSON_ENC_KEY(e, is_first, "{{ field.name }}"))
             goto fail;
         int ret = json_encode<{{ field.type_template }}>(
             e,
@@ -35,17 +36,17 @@ int json_encoder<{{ name_template }}>::encode(
         if (!ret) {
             e->index = before_field_idx;
         } else {
-            encoded++;
+            n_encoded++;
         }
         {% else %}
-        encoded++;
+        n_encoded++;
         {% endif %}
     }
 {% endif %}
 {% endfor %}
     if (!json_enc_end_obj(e))
         goto fail;
-    return encoded;
+    return n_encoded;
 fail:
     e->index = index;
     return -1;

@@ -1,13 +1,13 @@
 #ifndef _PERC_ENCODE_H_
 #define _PERC_ENCODE_H_
 
+#include <stddef.h>
 #include <string.h>
 #include "erl_nif.h"
 
 struct encoder {
 	ErlNifBinary bin;
-	unsigned int size;
-	unsigned int index;
+	size_t index;
 	ErlNifEnv *env;
 	ERL_NIF_TERM undef_atom;
 	ERL_NIF_TERM true_atom;
@@ -16,11 +16,11 @@ struct encoder {
 };
 
 static inline
-int encoder_init(ErlNifEnv *env, struct encoder *e,
-                 unsigned int size, ERL_NIF_TERM enc_opts)
+bool encoder_init(ErlNifEnv *env, struct encoder *e,
+		   size_t size, ERL_NIF_TERM enc_opts)
 {
 	if (!enif_alloc_binary(size, &e->bin))
-		return 0;
+		return false;
 
 	e->index = 0;
 	e->env = env;
@@ -30,7 +30,7 @@ int encoder_init(ErlNifEnv *env, struct encoder *e,
 	e->true_atom = enif_make_atom(env, "true");
 	e->false_atom = enif_make_atom(env, "false");
 
-	return 1;
+	return true;
 }
 
 static inline
@@ -41,9 +41,9 @@ ERL_NIF_TERM encoder_binary(struct encoder *e)
 }
 
 static inline
-int ensure(struct encoder *e, unsigned int len)
+int ensure(struct encoder *e, size_t len)
 {
-	unsigned int size = e->bin.size;
+	size_t size = e->bin.size;
 
 	if (size - e->index >= len)
 		return 1;
@@ -55,7 +55,7 @@ int ensure(struct encoder *e, unsigned int len)
 }
 
 static inline
-unsigned int capacity(struct encoder *e)
+size_t capacity(struct encoder *e)
 {
 	return e->bin.size - e->index;
 }
@@ -67,22 +67,21 @@ char *get_ptr(struct encoder *e)
 }
 
 static inline
-int enc_buf(struct encoder *e, const char *buf,
-		 unsigned int len)
+bool enc_buf(struct encoder *e, const char *buf, size_t len)
 {
 	if (!ensure(e, len))
-		return 0;
+		return false;
 
 	memcpy(get_ptr(e), buf, len);
 
 	e->index += len;
-	return 1;
+	return true;
 }
 
 #define ENC_LITERAL(e, str) enc_buf(e, str, sizeof(str)-1)
 
 static inline
-int is_undefined(struct encoder *e, ERL_NIF_TERM term)
+bool is_undefined(struct encoder *e, ERL_NIF_TERM term)
 {
 	return enif_is_identical(term, e->undef_atom);
 }

@@ -86,7 +86,9 @@ maybe_add_undef_filter(Type, Filters) ->
                 {false, _} -> {Type, Filters};
                 {true, 1} -> {Type, Filters};
                 {true, _} ->
-                    {perc_types:make_union(lists:delete(undefined_atom, List)),
+                    {perc_types:make_union(
+                       lists:delete(perc_types:make_undefined_atom(), List)
+                      ),
                      [make("no_undef") | Filters]}
             end;
         _ ->
