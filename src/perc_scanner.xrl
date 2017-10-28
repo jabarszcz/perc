@@ -6,44 +6,44 @@ FN = fn
 WS = [\f\n\r\s\t\v]
 NL = \r?\n
 SIMPLE_ID = [a-zA-Z][0-9a-zA-Z_]*
-STRING_SQUOT = \'([^\'\\]|\\[^\\]|\\\\|\\\')*\'
-STRING_DQUOT = \"([^\"\\]|\\[^\\]|\\\\|\\\")*\"
+STRING_SQUOT = \'([^\'\\]|\\[\\\'])*\'
 ID = {SIMPLE_ID}|{STRING_SQUOT}
 
 Rules.
 
-\%[^\r\n]*{NL}+			: skip_token. %% erlang style comments
-/\*([^*]|\*[^/])*\*/		: skip_token. %% c++ style block comment
-{WS}+				: skip_token. %% ignore whitespace
-{REC}				: {token, {record, TokenLine}}.
-{UTYPE}				: {token, {usertype, TokenLine}}.
-{FN}				: {token, {function, TokenLine}}.
-{ID}				: {token, {id, TokenLine, TokenChars}}.
-_				: {token, {wildcard, TokenLine}}.
-\.				: {token, {def_sep, TokenLine}}.
-\:\:				: {token, {'::', TokenLine}}.
-\{				: {token, {'{', TokenLine}}.
-\}				: {token, {'}', TokenLine}}.
-\(				: {token, {'(', TokenLine}}.
-\)				: {token, {')', TokenLine}}.
-\[				: {token, {'[', TokenLine}}.
-\]				: {token, {']', TokenLine}}.
-<				: {token, {'<', TokenLine}}.
->				: {token, {'>', TokenLine}}.
-,				: {token, {',', TokenLine}}.
+\%[^\r\n]*{NL}+         : skip_token. %% erlang style comments
+/\*([^*]|\*[^/])*\*/    : skip_token. %% c++ style block comment
+{WS}+                   : skip_token. %% ignore whitespace
+{REC}                   : {token, {record, TokenLine}}.
+{UTYPE}                 : {token, {usertype, TokenLine}}.
+{FN}                    : {token, {function, TokenLine}}.
+{ID}                    : {token, {id, TokenLine, unescape(TokenChars)}}.
+_                       : {token, {wildcard, TokenLine}}.
+\.                      : {token, {def_sep, TokenLine}}.
+\:\:                    : {token, {'::', TokenLine}}.
+\{                      : {token, {'{', TokenLine}}.
+\}                      : {token, {'}', TokenLine}}.
+\(                      : {token, {'(', TokenLine}}.
+\)                      : {token, {')', TokenLine}}.
+\[                      : {token, {'[', TokenLine}}.
+\]                      : {token, {']', TokenLine}}.
+<                       : {token, {'<', TokenLine}}.
+>                       : {token, {'>', TokenLine}}.
+,                       : {token, {',', TokenLine}}.
 
 Erlang code.
 
 -export([
     file/1,
     token_line/1,
-    token_val/1
-]).
+    token_val/1,
+    unescape/1
+  ]).
 
 -export_type([
     token/1,
     tokens/0
-]).
+  ]).
 
 -type token(V) :: {V, integer()} | {atom(), integer(), V}.
 
@@ -78,3 +78,17 @@ token_val({Value, _Line}) ->
 -spec token_line(token(any())) -> integer().
 token_line(Token) ->
     element(2, Token).
+
+-spec unescape(string()) -> string().
+unescape(S) ->
+    case re:run(S, "^'(.*)'$", [{capture, [1], list}]) of
+        {match, [Contents]} ->
+            re:replace(
+              Contents,
+              "\\\\([\\\\'])",
+              "\\g1",
+              [global, {return, list}]
+             );
+        nomatch ->
+            S
+    end.
