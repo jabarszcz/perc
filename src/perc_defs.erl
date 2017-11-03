@@ -22,7 +22,8 @@
     set_record_def_fields/2,
     set_record_field_type/2,
     set_record_field_filters/2,
-    set_usertype_def_type/2
+    set_usertype_def_type/2,
+    def_to_type/1
   ]).
 
 -export_type([
@@ -186,3 +187,9 @@ set_record_field_filters(RecordField, Filters) ->
                                    usertype_def().
 set_usertype_def_type(UserTypeDef, Type) ->
     UserTypeDef#usertype_def{type=Type}.
+
+-spec def_to_type(usertype_def() | record_def()) -> perc_types:perc_type().
+def_to_type(#record_def{name=Name}) ->
+    perc_types:make_record(Name);
+def_to_type(#usertype_def{name=Name}) ->
+    perc_types:make_usertype(Name).

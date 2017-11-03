@@ -17,7 +17,7 @@ enum Id : unsigned int {% templatetag openbrace %}
 {% endfor %}
 
 {% for nif_func in module.nif_funcs %}
-ERL_NIF_TERM {{ nif_func.name }}(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+ERL_NIF_TERM {{ nif_func.internal }}(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {% templatetag openbrace %}
     struct encoder e;
     if (argc != 2)
@@ -32,7 +32,7 @@ ERL_NIF_TERM {{ nif_func.name }}(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
 {% endfor %}
 
 static ErlNifFunc nif_funcs[] = {% templatetag openbrace %}
-{% for nif_func in module.nif_funcs %}    {% templatetag openbrace %}"{{ nif_func.name }}", 2, {{ nif_func.name }}{% templatetag closebrace %},
+{% for nif_func in module.nif_funcs %}    {% templatetag openbrace %}"{{ nif_func.name }}", 2, {{ nif_func.internal }}{% templatetag closebrace %},
 {% endfor %}{% templatetag closebrace %};
 ERL_NIF_INIT({{ module.name }}, nif_funcs, load, NULL, NULL, NULL)
 {% endautoescape %}

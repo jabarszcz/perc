@@ -7,8 +7,8 @@
 %% API exports
 -export([
     name/0,
-    gen_record_enc_func/1,
-    gen_usertype_enc_func/1
+    gen_record_enc_func/2,
+    gen_usertype_enc_func/2
   ]).
 
 %%====================================================================
@@ -19,26 +19,31 @@
 name() ->
     "json".
 
--spec gen_record_enc_func(perc_defs:record_def()) -> iolist().
-gen_record_enc_func(RecordDef) ->
+-spec gen_record_enc_func(
+        perc_defs:record_def(),
+        dict:dict(perc_types:perc_type(), integer())
+       ) -> iolist().
+gen_record_enc_func(RecordDef, IdMap) ->
     RecordName = perc_defs:get_record_def_name(RecordDef),
     Fields = perc_defs:get_record_def_fields(RecordDef),
-    RecordType = perc_types:make_record(RecordName),
+    RecordType = perc_defs:def_to_type(RecordDef),
     Dict =
         [{name, RecordName},
-         {name_template, perc_backend:template(RecordType)},
-         {fields, [field_dict(Field, Index)
-                   || {Field, Index} <- enumerate(Fields)]}],
+         {name_template, perc_backend:template(RecordType, IdMap)},
+         {fields, [field_dict(Field, Index, IdMap)
+                   || {Index, Field} <- perc_utils:enumerate(Fields)]}],
     {ok, Source} = json_encode_record_dtl:render(Dict),
     Source.
 
--spec gen_usertype_enc_func(perc_defs:usertype_def()) -> iolist().
-gen_usertype_enc_func(UserTypeDef) ->
-    UserTypeName = perc_defs:get_usertype_def_name(UserTypeDef),
+-spec gen_usertype_enc_func(
+        perc_defs:usertype_def(),
+        dict:dict(perc_types:perc_type(), integer())
+       ) -> iolist().
+gen_usertype_enc_func(UserTypeDef, IdMap) ->
     UserTypeType = perc_defs:get_usertype_def_type(UserTypeDef),
-    UserType = perc_types:make_usertype(UserTypeName),
-    Dict = [{name_template, perc_backend:template(UserType)},
-            {type_template, perc_backend:template(UserTypeType)}],
+    UserType = perc_defs:def_to_type(UserTypeDef),
+    Dict = [{name_template, perc_backend:template(UserType, IdMap)},
+            {type_template, perc_backend:template(UserTypeType, IdMap)}],
     {ok, Source} = json_encode_usertype_dtl:render(Dict),
     Source.
 
@@ -46,7 +51,7 @@ gen_usertype_enc_func(UserTypeDef) ->
 %% Internal functions
 %%====================================================================
 
-field_dict(Field, Index) ->
+field_dict(Field, Index, IdMap) ->
     Type = perc_defs:get_record_field_type(Field),
     TypeVals =
         case perc_types:get_type(Type) of
@@ -62,7 +67,7 @@ field_dict(Field, Index) ->
                 [{ignored, true},
                  {ignored_reason_lines, ReasonLines}];
             _ ->
-                [{type_template, perc_backend:template(Type)}]
+                [{type_template, perc_backend:template(Type, IdMap)}]
         end,
     FilterVals =
         case perc_defs:get_record_field_filters(Field) of
@@ -82,6 +87,3 @@ field_dict(Field, Index) ->
         {index, Index},
         {no_empty_obj, EmptyObjFilter}]
       ]).
-
-enumerate(List) ->
-    lists:zip(List, lists:seq(1, length(List))).
