@@ -1,9 +1,11 @@
 #ifndef _PERC_JSON_H_
 #define _PERC_JSON_H_
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "nif_utils.h"
 #include "perc_encode.h"
 
 #define INT_FMT "%ld"
@@ -23,22 +25,17 @@ int json_enc_integer(struct encoder *e, ERL_NIF_TERM term)
 	if (!enif_get_int64(e->env, term, &val))
 		return -1;
 
+	if (!ensure(e, 32))
+		return -1;
+
 	size_t cap = capacity(e);
-
-	if (!cap) {
-		if (!ensure(e, 32))
-			return -1;
-		else
-			cap = capacity(e);
-	}
-
-	// TODO portability with length of longs: see jiffy
+	static_assert( sizeof(long) == 8 );
 	int ret = enif_snprintf(get_ptr(e), cap, INT_FMT, val);
-	if (ret >= cap) {
-		if (!ensure(e, ret+1))
-			return -1;
-		ret = enif_snprintf(get_ptr(e), ret+1, INT_FMT, val);
-	}
+	nif_utils_assert(
+		e->env,
+		ret < cap,
+		"Encoded long integer string too long"
+		);
 
 	e->index += ret;
 	return 1;
@@ -52,21 +49,16 @@ int json_enc_float(struct encoder *e, ERL_NIF_TERM term)
 	if (!enif_get_double(e->env, term, &val))
 		return -1;
 
+	if (!ensure(e, 32))
+		return -1;
+
 	size_t cap = capacity(e);
-
-	if (!cap) {
-		if (!ensure(e, 32))
-			return -1;
-		else
-			cap = capacity(e);
-	}
-
 	int ret = enif_snprintf(get_ptr(e), cap, FLOAT_FMT, val);
-	if (ret >= cap) {
-		if (!ensure(e, ret+1))
-			return -1;
-		ret = enif_snprintf(get_ptr(e), ret+1, FLOAT_FMT, val);
-	}
+	nif_utils_assert(
+		e->env,
+		ret < cap,
+		"Encoded float string too long"
+		);
 
 	e->index += ret;
 	return 1;
