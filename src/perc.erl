@@ -1,5 +1,7 @@
 -module(perc).
 
+-include_lib("kernel/include/file.hrl").
+
 %% API exports
 -export([
     main/1,
@@ -32,11 +34,12 @@ main(Args) ->
 
 -spec generate_codecs(list()) -> ok | no_return().
 generate_codecs(Options) ->
-    Gen = gen_from_options(Options),
-    case perc_opts:get_exported(Options) of
-        [] ->
-            ok;
-        _ ->
+    case
+        (should_run(Options) or perc_opts:has_force(Options))
+        and (perc_opts:get_exported(Options) =/= [])
+    of
+        true ->
+            Gen = gen_from_options(Options),
             Reduced = perc_reduce:reduce(Gen),
             generate_nif(Reduced),
             generate_erl(Reduced),
@@ -50,6 +53,8 @@ generate_codecs(Options) ->
                     Defs = perc_gen:get_defs(Reduced),
                     file:write_file(Filename, perc_prettypr:format(Defs))
             end,
+            ok;
+        _ ->
             ok
     end.
 
@@ -84,6 +89,24 @@ save_graph(Gen, Filename, Format) ->
     Ret = perc_digraph:save(Graph, Filename, Format),
     perc_digraph:delete(Graph),
     Ret.
+
+should_run(Opts) ->
+    try
+        InFiles = perc_opts:get_inputs(Opts),
+        DateIn = lists:max(
+                   [begin
+                        {ok, InfoIn} = file:read_file_info(F),
+                        InfoIn#file_info.mtime
+                    end || F <- InFiles]
+                  ),
+        SoPath = perc_opts:get_sopath(Opts),
+        SoFile = io_lib:format("~s.so", [SoPath]),
+        {ok, InfoOut} = file:read_file_info(SoFile),
+        DateOut = InfoOut#file_info.mtime,
+        DateIn > DateOut
+    catch
+        _:{badmatch, _} -> true
+    end.
 
 -spec generate_nif(perc_gen:gen()) -> ok | no_return().
 generate_nif(Gen) ->

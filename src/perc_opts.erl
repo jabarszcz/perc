@@ -14,6 +14,7 @@
     get_sopath/1,
     has_compile_cpp/1,
     has_compile_erl/1,
+    has_force/1,
     has_graph/1,
     has_load/1,
     optspec/0
@@ -43,7 +44,8 @@
                 | load | {load, boolean()}
                 | so | {so, boolean()}
                 | graph | {graph, boolean()}
-                | {schema, string()}.
+                | {schema, string()}
+                | force | {force, boolean()}.
 
 -type options() :: [option()].
 
@@ -138,6 +140,10 @@ has_compile_erl(Opts) ->
         Load,
     Compile.
 
+-spec has_force(options()) -> boolean().
+has_force(Opts) ->
+    proplists:get_bool(force, Opts).
+
 -spec has_graph(options()) -> boolean().
 has_graph(Opts) ->
     proplists:get_bool(graph, Opts).
@@ -182,5 +188,7 @@ optspec() ->
      {schema, $s, "schema", string,
       "Output the schema to a file"},
      {include, undefined, "include", string,
-      ".h file to include in the generated native code"}
+      ".h file to include in the generated native code"},
+     {force, $F, "force", boolean,
+      "Force perc to run even if the generated files are newer than the input"}
     ].
