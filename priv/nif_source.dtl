@@ -22,11 +22,11 @@ ERL_NIF_TERM {{ nif_func.internal }}(ErlNifEnv* env, int argc, const ERL_NIF_TER
     struct encoder e;
     if (argc != 2)
         return enif_make_badarg(env);
-    if (!encoder_init(env, &e, {{ nif_func.defaultsize }}, argv[1]))
+    if (!enc_init(env, &e, {{ nif_func.defaultsize }}, argv[1]))
         return enif_make_atom(env, "error");
     if ({{ nif_func.backend }}_encode<{{ nif_func.type_template }}>(&e, argv[0]) < 0)
         return enif_make_badarg(env);
-    return encoder_binary(&e);
+    return enc_binary(&e);
 {% templatetag closebrace %}
 
 {% endfor %}

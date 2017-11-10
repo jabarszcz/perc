@@ -6,7 +6,7 @@
 #include <stddef.h>
 
 #include "nif_utils.h"
-#include "perc_encode.h"
+#include "perc_enc.h"
 
 #define INT_FMT "%ld"
 #define FLOAT_FMT "%.15g"
@@ -25,12 +25,12 @@ int json_enc_integer(struct encoder *e, ERL_NIF_TERM term)
         if (!enif_get_int64(e->env, term, &val))
                 return -1;
 
-        if (!ensure(e, 32))
+        if (!enc_ensure(e, 32))
                 return -1;
 
-        size_t cap = capacity(e);
+        size_t cap = enc_capacity(e);
         static_assert( sizeof(long) == 8 );
-        int ret = enif_snprintf(get_ptr(e), cap, INT_FMT, val);
+        int ret = enif_snprintf(enc_get_ptr(e), cap, INT_FMT, val);
         nif_utils_assert(
                 e->env,
                 ret < cap,
@@ -49,11 +49,11 @@ int json_enc_float(struct encoder *e, ERL_NIF_TERM term)
         if (!enif_get_double(e->env, term, &val))
                 return -1;
 
-        if (!ensure(e, 32))
+        if (!enc_ensure(e, 32))
                 return -1;
 
-        size_t cap = capacity(e);
-        int ret = enif_snprintf(get_ptr(e), cap, FLOAT_FMT, val);
+        size_t cap = enc_capacity(e);
+        int ret = enif_snprintf(enc_get_ptr(e), cap, FLOAT_FMT, val);
         nif_utils_assert(
                 e->env,
                 ret < cap,
@@ -153,9 +153,9 @@ int json_enc_string(struct encoder *e, ERL_NIF_TERM term)
                 goto fail;
         if (!ENC_LITERAL(e, "\""))
                 goto fail;
-        if (!ensure(e, len+1))
+        if (!enc_ensure(e, len+1))
                 goto fail;
-        ret = enif_get_string(e->env, term, get_ptr(e), len+1,
+        ret = enif_get_string(e->env, term, enc_get_ptr(e), len+1,
                               ERL_NIF_LATIN1); // TODO utf8
         if (ret != len+1)
                 goto fail;
