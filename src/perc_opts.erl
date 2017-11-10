@@ -17,7 +17,8 @@
     has_force/1,
     has_graph/1,
     has_load/1,
-    optspec/0
+    optspec/0,
+    optspec_nodefaults/0
   ]).
 
 -export_type([
@@ -192,3 +193,17 @@ optspec() ->
      {force, $F, "force", boolean,
       "Force perc to run even if the generated files are newer than the input"}
     ].
+
+-spec optspec_nodefaults() -> [{atom(),
+                                integer(),
+                                string(),
+                                atom() | tuple(),
+                                string()}].
+optspec_nodefaults() ->
+    [{A, B, C, case is_tuple(D) of
+                   true ->
+                       element(1, D);
+                   _ ->
+                       D
+               end,
+      E} || {A, B, C, D, E} <- optspec()].
