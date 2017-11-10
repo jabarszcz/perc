@@ -121,10 +121,12 @@ generate_nif(Gen) ->
             ErlNifIncludeDir = filename:join(code:root_dir(), "usr/include"),
             CIncludeDir = code:priv_dir(perc),
             Flags = perc_opts:get_cpp_flags(Opts),
+            CXX = os:getenv("CXX", "g++"),
             Cmd = io_lib:format(
-                    "g++ -fvisibility=hidden -nodefaultlibs "
+                    "~s -fvisibility=hidden -nodefaultlibs "
                     "-o ~s -fpic -shared ~s -I ~s -I ~s -I . ~s",
-                    [SoFile, TempFile, ErlNifIncludeDir, CIncludeDir, Flags]
+                    [CXX, SoFile, TempFile, ErlNifIncludeDir,
+                     CIncludeDir, Flags]
                    ),
             ok = file:write_file(TempFile, CppStr),
             io:format("~s~n", [Cmd]), %% TODO remove
