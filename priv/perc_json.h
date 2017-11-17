@@ -29,7 +29,7 @@ int json_enc_integer(struct encoder *e, ERL_NIF_TERM term)
                 return -1;
 
         size_t cap = enc_capacity(e);
-        static_assert( sizeof(long) == 8 );
+        static_assert( sizeof(long) == 8, "sizeof(long) != 8" );
         int ret = enif_snprintf(enc_get_ptr(e), cap, INT_FMT, val);
         nif_utils_assert(
                 e->env,
