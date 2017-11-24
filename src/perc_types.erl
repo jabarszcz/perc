@@ -36,7 +36,7 @@
 % API types
 %%====================================================================
 
--opaque perc_type() :: perc_ignored()
+-type perc_type() :: perc_ignored()
                      | undefined_atom
                      | perc_basic()
                      | perc_list()
@@ -59,12 +59,12 @@
 -type perc_basic() :: {basic, basic()}.
 -type perc_list() :: {list, perc_type()}.
 -type perc_tuple() :: {tuple, [perc_type()]}.
--type perc_record() :: {record, string()}.
--type perc_usertype() :: {usertype, {string(), [erl_syntax:syntaxtree()]}}.
+-type perc_record() :: {record, perc_id:id()}.
+-type perc_usertype() :: {usertype, perc_id:id()}.
 -type perc_union() :: {union, [perc_type()]}.
 -type perc_function() :: {function,
-                          {undefined | string(),
-                           undefined | string()},
+                          {undefined | perc_id:id(),
+                           undefined | perc_id:id()},
                           perc_type()}.
 
 %%====================================================================
@@ -105,17 +105,17 @@ get_tuple_types({tuple, Types}) ->
 get_union_types({union, Types}) ->
     Types.
 
--spec get_record_name(perc_type()) -> string().
+-spec get_record_name(perc_type()) -> perc_id:id().
 get_record_name({record, Name}) ->
     Name.
 
--spec get_usertype_name(perc_type()) -> string().
+-spec get_usertype_name(perc_type()) -> perc_id:id().
 get_usertype_name({usertype, Name}) ->
     Name.
 
 -spec get_function_names(perc_type()) ->
-                                {undefined | string(),
-                                 undefined | string()}.
+                                {undefined | perc_id:id(),
+                                 undefined | perc_id:id()}.
 get_function_names({function, {Enc, Dec}, _}) ->
     {Enc, Dec}.
 
@@ -151,15 +151,15 @@ make_tuple(Types) ->
 make_union(Types) ->
     {union, Types}.
 
--spec make_record(string()) -> perc_type().
+-spec make_record(perc_id:id()) -> perc_type().
 make_record(Name) ->
     {record, Name}.
 
--spec make_usertype(string()) -> perc_type().
+-spec make_usertype(perc_id:id()) -> perc_type().
 make_usertype(Name) ->
     {usertype, Name}.
 
--spec make_function({string(), string()}, perc_type()) -> perc_type().
+-spec make_function({perc_id:id(), perc_id:id()}, perc_type()) -> perc_type().
 make_function({Enc, Dec}, Arg) ->
     {function, {Enc, Dec}, Arg}.
 

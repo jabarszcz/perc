@@ -6,8 +6,11 @@
     error_line/1,
     format_error/1,
     parse_annotation/1,
+    parse_annotation_str/1,
     parse_defs/1,
-    parse_type/1
+    parse_defs_str/1,
+    parse_type/1,
+    parse_type_str/1
 ]).
 
 -export_type([
@@ -56,8 +59,19 @@ parse_annotation(Tokens) ->
             {error, error_line(Err), Err}
     end.
 
+-spec parse_annotation_str(string()) ->
+                        {ok, {[string()] | undefined, list()}}
+                            | {error, linespec(), any()}.
+parse_annotation_str(Str) ->
+    case perc_scanner:string(Str) of
+        {ok, Toks, _EndLine} ->
+            parse_annotation(Toks);
+        {error, {ErrorLine, _Module, Reason}, _} ->
+            {error, ErrorLine, Reason}
+    end.
+
 -spec parse_defs(perc_scanner:tokens()) ->
-                        {ok, perc_types:defs()}
+                        {ok, perc_defs:defs()}
                             | {error, linespec(), parse_error()}.
 parse_defs(Tokens) ->
     case either:get_either(defs(Tokens)) of
@@ -65,6 +79,17 @@ parse_defs(Tokens) ->
             {ok, Val};
         {left, Err} ->
             {error, error_line(Err), Err}
+    end.
+
+-spec parse_defs_str(string()) ->
+                        {ok, perc_defs:defs()}
+                            | {error, linespec(), any()}.
+parse_defs_str(Str) ->
+    case perc_scanner:string(Str) of
+        {ok, Toks, _EndLine} ->
+            parse_defs(Toks);
+        {error, {ErrorLine, _Module, Reason}, _} ->
+            {error, ErrorLine, Reason}
     end.
 
 -spec parse_type(perc_scanner:tokens()) ->
@@ -76,6 +101,17 @@ parse_type(Tokens) ->
             {ok, Val};
         {left, Err} ->
             {error, error_line(Err), Err}
+    end.
+
+-spec parse_type_str(string()) ->
+                        {ok, perc_types:type()}
+                            | {error, linespec(), any()}.
+parse_type_str(Str) ->
+    case perc_scanner:string(Str) of
+        {ok, Toks, _EndLine} ->
+            parse_type(Toks);
+        {error, {ErrorLine, _Module, Reason}, _} ->
+            {error, ErrorLine, Reason}
     end.
 
 %%====================================================================
@@ -180,7 +216,7 @@ usertype_def(Tokens) ->
            ),
     either:apply(
       fun({[_, {Id, Line}, _, {Type, _}, _], Rest}) ->
-              {{perc_defs:make_record_def(Id, Type), Line}, Rest}
+              {{perc_defs:make_usertype_def(Id, Type), Line}, Rest}
       end,
       Ret
      ).
@@ -301,7 +337,7 @@ usertype_ref(Tokens) ->
          ),
     either:apply(
       fun({[_, _, {Name, Line}, _], Rest}) ->
-              {{usertype, Name}, Line, Rest}
+              {{{usertype, Name}, Line}, Rest}
       end,
       Ret
      ).

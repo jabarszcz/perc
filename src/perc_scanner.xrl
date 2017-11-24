@@ -17,7 +17,7 @@ Rules.
 {REC}                   : {token, {record, TokenLine}}.
 {UTYPE}                 : {token, {usertype, TokenLine}}.
 {FN}                    : {token, {function, TokenLine}}.
-{ID}                    : {token, {id, TokenLine, unescape(TokenChars)}}.
+{ID}                    : {token, {id, TokenLine, perc_id:parse(TokenChars)}}.
 _                       : {token, {wildcard, TokenLine}}.
 \.                      : {token, {def_sep, TokenLine}}.
 \:\:                    : {token, {'::', TokenLine}}.
@@ -36,8 +36,7 @@ Erlang code.
 -export([
     file/1,
     token_line/1,
-    token_val/1,
-    unescape/1
+    token_val/1
   ]).
 
 -export_type([
@@ -78,17 +77,3 @@ token_val({Value, _Line}) ->
 -spec token_line(token(any())) -> integer().
 token_line(Token) ->
     element(2, Token).
-
--spec unescape(string()) -> string().
-unescape(S) ->
-    case re:run(S, "^'(.*)'$", [{capture, [1], list}]) of
-        {match, [Contents]} ->
-            re:replace(
-              Contents,
-              "\\\\([\\\\'])",
-              "\\g1",
-              [global, {return, list}]
-             );
-        nomatch ->
-            S
-    end.

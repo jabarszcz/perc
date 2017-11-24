@@ -19,20 +19,20 @@
 %%====================================================================
 
 -record(filter, {
-          name :: string()
+          name :: perc_id:id()
          }).
 
--opaque filter() :: #filter{}.
+-type filter() :: #filter{}.
 
 %%====================================================================
 % API functions
 %%====================================================================
 
--spec get_name(filter()) -> string().
+-spec get_name(filter()) -> perc_id:id().
 get_name(Filter) ->
     Filter#filter.name.
 
--spec make(string()) -> filter().
+-spec make(perc_id:id()) -> filter().
 make(Name) ->
     #filter{name=Name}.
 

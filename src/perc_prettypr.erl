@@ -12,13 +12,13 @@
 -spec format(perc_defs:defs()) -> iolist().
 format(Defs) ->
     [[io_lib:format("usertype ~s :: ~s.~n~n",
-                    [perc_defs:get_usertype_def_name(U),
+                    [perc_id:show(perc_defs:get_usertype_def_name(U)),
                      format_perc_type(
                        perc_defs:get_usertype_def_type(U)
                       )
                     ]) || U <- perc_defs:get_usertypes(Defs)],
      [io_lib:format("record ~s :: ~s.~n~n",
-                    [perc_defs:get_record_def_name(R),
+                    [perc_id:show(perc_defs:get_record_def_name(R)),
                      format_record_fields(R)
                     ]) || R <- perc_defs:get_records(Defs)]
     ].
@@ -35,6 +35,11 @@ format_record_fields(RecordDef) ->
 
 format_record_field(Field) ->
     Name = perc_defs:get_record_field_name(Field),
+    NameStr =
+        case Name of
+            undefined -> "_";
+            _ -> perc_id:show(Name)
+        end,
     TypeStr =
         format_perc_type(
           perc_defs:get_record_field_type(Field)
@@ -42,11 +47,15 @@ format_record_field(Field) ->
     Filters = perc_defs:get_record_field_filters(Field),
     case Filters of
         [] ->
-            io_lib:format("    ~s :: ~s,~n", [Name, TypeStr]);
+            io_lib:format("    ~s :: ~s,~n", [NameStr, TypeStr]);
         _ ->
             FiltersStr =
-                string:join([perc_filter:get_name(F) || F <- Filters], ","),
-            io_lib:format("    ~s :: ~s [~s],~n", [Name, TypeStr, FiltersStr])
+                string:join(
+                  [perc_id:show(perc_filter:get_name(F)) || F <- Filters],
+                  ","
+                 ),
+            io_lib:format("    ~s :: ~s [~s],~n",
+                          [NameStr, TypeStr, FiltersStr])
     end.
 
 format_perc_type(Type) ->
@@ -56,7 +65,12 @@ format_perc_type(Type) ->
                 undefined ->
                     "ignored";
                 Reason ->
-                    io_lib:format("ignored /* ~p */", [Reason])
+                    CommentSafeReason =
+                        re:replace(
+                          io_lib:format("~p", [Reason]),
+                          "[*][/]", "*\\\\/", [global, {return, list}]
+                         ),
+                    io_lib:format("ignored /* ~s */", [CommentSafeReason])
             end;
         undefined_atom ->
             "undefined";
@@ -79,10 +93,10 @@ format_perc_type(Type) ->
              );
         record ->
             RecordName = perc_types:get_record_name(Type),
-            io_lib:format("record<~s>", [RecordName]);
+            io_lib:format("record<~s>", [perc_id:show(RecordName)]);
         usertype ->
             UserTypeName = perc_types:get_usertype_name(Type),
-            io_lib:format("usertype<~s>", [UserTypeName]);
+            io_lib:format("usertype<~s>", [perc_id:show(UserTypeName)]);
         function ->
             TypeArg = perc_types:get_function_arg(Type),
             TypeArgStr = format_perc_type(TypeArg),
@@ -95,4 +109,4 @@ format_perc_type(Type) ->
 function_to_id(undefined) ->
     "_";
 function_to_id(Name) ->
-    Name.
+    perc_id:show(Name).

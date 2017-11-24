@@ -1,6 +1,7 @@
 -module(perc_defs).
 
 -export([
+    apply_types/2,
     get_records/1,
     get_usertypes/1,
     make/2,
@@ -38,33 +39,33 @@
 %%====================================================================
 
 -record(record_field, {
-          name :: undefined | string(),
-          type :: undefined | perc_types:perc_type(),
+          name :: undefined | perc_id:id(),
+          type :: perc_types:perc_type(),
           filters = [] :: [perc_filter:filter()]
          }).
 
--opaque record_field() :: #record_field{}.
+-type record_field() :: #record_field{}.
 
 -record(record_def, {
-          name :: undefined | string(),
+          name :: perc_id:id(),
           fields = [] :: [#record_field{}]
          }).
 
--opaque record_def() :: #record_def{}.
+-type record_def() :: #record_def{}.
 
 -record(usertype_def, {
-          name :: undefined | string(),
-          type :: undefined | perc_types:perc_type()
+          name :: perc_id:id(),
+          type :: perc_types:perc_type()
          }).
 
--opaque usertype_def() :: #usertype_def{}.
+-type usertype_def() :: #usertype_def{}.
 
 -record(defs, {
           records = [] :: [record_def()],
           usertypes = [] :: [usertype_def()]
          }).
 
--opaque defs() :: #defs{}.
+-type defs() :: #defs{}.
 
 %%====================================================================
 %% API functions
@@ -105,7 +106,7 @@ merge(DefsList) ->
 set_records(Defs, Records) ->
     Defs#defs{records=Records}.
 
--spec get_record_def_name(record_def()) -> string().
+-spec get_record_def_name(record_def()) -> perc_id:id().
 get_record_def_name(RecordDef) ->
     RecordDef#record_def.name.
 
@@ -113,7 +114,7 @@ get_record_def_name(RecordDef) ->
 get_record_def_fields(RecordDef) ->
     RecordDef#record_def.fields.
 
--spec get_record_field_name(record_field()) -> string().
+-spec get_record_field_name(record_field()) -> undefined | perc_id:id().
 get_record_field_name(Field) ->
     Field#record_field.name.
 
@@ -125,7 +126,7 @@ get_record_field_type(Field) ->
 get_record_field_filters(Field) ->
     Field#record_field.filters.
 
--spec get_usertype_def_name(usertype_def()) -> string().
+-spec get_usertype_def_name(usertype_def()) -> perc_id:id().
 get_usertype_def_name(UserType) ->
     UserType#usertype_def.name.
 
@@ -145,26 +146,26 @@ is_usertype_def(#usertype_def{} = _) ->
 is_usertype_def(_) ->
     false.
 
--spec make_record_def(string(), [record_field()]) -> record_def().
+-spec make_record_def(perc_id:id(), [record_field()]) -> record_def().
 make_record_def(Name, Fields) ->
     #record_def{name = Name, fields = Fields}.
 
 -spec make_record_field(
-        undefined | string(),
+        undefined | perc_id:id(),
         perc_types:perc_type()
        ) -> record_field().
 make_record_field(Name, Type) ->
     #record_field{name = Name, type = Type}.
 
 -spec make_record_field(
-        undefined | string(),
+        undefined | perc_id:id(),
         perc_types:perc_type(),
         [perc_filter:filter()]
        ) -> record_field().
 make_record_field(Name, Type, Filters) ->
     #record_field{name = Name, type = Type, filters=Filters}.
 
--spec make_usertype_def(string(), perc_types:perc_type()) -> usertype_def().
+-spec make_usertype_def(perc_id:id(), perc_types:perc_type()) -> usertype_def().
 make_usertype_def(Name, Type) ->
     #usertype_def{name = Name, type = Type}.
 
@@ -193,3 +194,32 @@ def_to_type(#record_def{name=Name}) ->
     perc_types:make_record(Name);
 def_to_type(#usertype_def{name=Name}) ->
     perc_types:make_usertype(Name).
+
+-spec apply_types(
+        fun((perc_types:perc_type()) -> perc_types:perc_type()),
+        defs()
+       ) -> defs().
+apply_types(Fun, Defs) ->
+    #defs{
+       records = [apply_types_record(R, Fun) || R <- Defs#defs.records],
+       usertypes = [apply_types_usertype(R, Fun) || R <- Defs#defs.usertypes]
+      }.
+
+%%====================================================================
+%% Internal functions
+%%====================================================================
+
+apply_types_record(Record, Fun) ->
+    Record#record_def{
+      fields = [apply_types_field(F, Fun) || F <- Record#record_def.fields]
+     }.
+
+apply_types_field(Field, Fun) ->
+    Field#record_field{
+      type = perc_types:fmap(Fun, Field#record_field.type)
+     }.
+
+apply_types_usertype(UserType, Fun) ->
+    UserType#usertype_def{
+      type = perc_types:fmap(Fun, UserType#usertype_def.type)
+     }.
