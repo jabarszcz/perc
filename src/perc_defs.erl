@@ -1,5 +1,7 @@
 -module(perc_defs).
 
+-include_lib("proper/include/proper.hrl").
+
 -export([
     apply_types/2,
     get_records/1,
@@ -25,6 +27,10 @@
     set_record_field_filters/2,
     set_usertype_def_type/2,
     def_to_type/1
+  ]).
+
+-export([
+    generator/0
   ]).
 
 -export_type([
@@ -216,10 +222,41 @@ apply_types_record(Record, Fun) ->
 
 apply_types_field(Field, Fun) ->
     Field#record_field{
-      type = perc_types:fmap(Fun, Field#record_field.type)
+      type = Fun(Field#record_field.type)
      }.
 
 apply_types_usertype(UserType, Fun) ->
     UserType#usertype_def{
-      type = perc_types:fmap(Fun, UserType#usertype_def.type)
+      type = Fun(UserType#usertype_def.type)
      }.
+
+%%====================================================================
+%% Proper generators
+%%====================================================================
+
+-spec generator() -> proper_types:type().
+generator() ->
+    ?LET(Names, {list(perc_id:id()), list(perc_id:id())}, generator_(Names)).
+
+-spec generator_({[perc_id:id()], [perc_id:id()]}) -> proper_types:type().
+generator_(Names = {RecordNames, UserTypeNames}) ->
+    RecordGens = [gen_record(N, Names) || N <- RecordNames],
+    UsertypeGens = [gen_usertype(N, Names) || N <- UserTypeNames],
+    ?LET({R, U}, {RecordGens, UsertypeGens},
+         make(R, U)
+        ).
+
+gen_field(Names) ->
+    ?LET({Id, Type}, {perc_id:id(), perc_types:generator(Names)},
+         make_record_field(Id, Type)
+         ).
+
+gen_record(Name, Names) ->
+    ?LET(Fields, list(gen_field(Names)),
+         make_record_def(Name, Fields)
+        ).
+
+gen_usertype(Name, Names) ->
+    ?LET(Type, perc_types:generator(Names),
+         make_usertype_def(Name, Type)
+        ).

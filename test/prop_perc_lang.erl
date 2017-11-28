@@ -6,8 +6,13 @@ prop_parse_print_almost_symmetric() ->
     ?FORALL(D, perc_defs:defs(),
             begin
                 A = {ok, perc_defs:apply_types(
-                           fun ({ignored, _}) -> ignored;
-                               (Else) -> Else
+                           fun (Type) ->
+                                   perc_types:fmap(
+                                     fun ({ignored, _}) -> ignored;
+                                         (Else) -> Else
+                                     end,
+                                     Type
+                                    )
                            end,
                            D
                           )},

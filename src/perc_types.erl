@@ -1,5 +1,7 @@
 -module(perc_types).
 
+-include_lib("proper/include/proper.hrl").
+
 %% API exports
 -export([
     children/1,
@@ -26,6 +28,10 @@
     make_record/1,
     make_usertype/1,
     make_function/2
+  ]).
+
+-export([
+    generator/1
   ]).
 
 -export_type([
@@ -218,3 +224,57 @@ update({function, Names, _}, [Type]) -> {function, Names, Type};
 update({tuple, _}, Types) -> {tuple, Types};
 update({union, _}, Types) -> {union, Types};
 update(Type, []) -> Type.
+
+%%====================================================================
+%% Proper Generators
+%%====================================================================
+
+-spec generator({[perc_id:id()], [perc_id:id()]}) -> proper_types:type().
+generator(Names) ->
+    ?SIZED(Size, generator_(Names, math:log10(Size))).
+
+-spec generator_(
+        {[perc_id:id()], [perc_id:id()]},
+        number()
+       ) -> proper_types:type().
+generator_({[], []}, Depth) when Depth < 1 ->
+    basic_ignored_gen();
+generator_(Names, Depth) when Depth < 1 ->
+    proper_types:oneof([basic_ignored_gen(), ref_gen(Names)]);
+generator_(Names, Depth) ->
+    proper_types:oneof(
+      [
+       ?LET(Types, list(generator_(Names, Depth-1)),
+            proper_types:oneof(
+              [make_union(Types), make_tuple(Types)]
+             )
+           ),
+       ?LET(Type, generator_(Names, Depth-1), make_list(Type)),
+       func_gen(Names, Depth-1)
+      ]
+     ).
+
+-spec basic_ignored_gen() -> proper_types:type().
+basic_ignored_gen() ->
+    ?LET(Basic, proper_types:oneof([perc_basic(), perc_ignored()]), Basic).
+
+-spec func_gen(
+        {[perc_id:id()], [perc_id:id()]},
+        number()
+       ) -> proper_types:type().
+func_gen(Names, Depth) ->
+    ?LET(Type, generator_(Names, Depth),
+         ?LET(Ids, {perc_id:id(), perc_id:id()},
+              make_function(Ids, Type)
+             )
+        ).
+
+-spec ref_gen({[perc_id:id()], [perc_id:id()]}) -> proper_types:type().
+ref_gen({RecordNames, []}) ->
+    ?LET(RName, oneof(RecordNames), perc_types:make_record(RName));
+ref_gen({[], UsertypeNames}) ->
+    ?LET(UName, oneof(UsertypeNames), perc_types:make_usertype(UName));
+ref_gen({RecordNames, UsertypeNames}) ->
+    proper_types:oneof(
+      [ref_gen({RecordNames, []}), ref_gen({[], UsertypeNames})]
+     ).

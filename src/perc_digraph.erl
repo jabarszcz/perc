@@ -60,7 +60,7 @@ reduce_ignored(State, Type) ->
     case dict:find(ignored, State#state.dict) of
         error ->
             Type;
-        IgnoredVertex ->
+        {ok, IgnoredVertex} ->
             Vertex = dict:fetch(Type, State#state.dict),
             Graph = State#state.norec_graph,
             case digraph:get_path(Graph, Vertex, IgnoredVertex) of

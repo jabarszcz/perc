@@ -4,7 +4,11 @@
 
 %% API exports
 -export([
-    reduce/1
+    reduce/1,
+    reduce_deps/2,
+    reduce_ignored/1,
+    reduce_unions/1,
+    reduce_usertypes/1
   ]).
 
 %%====================================================================
