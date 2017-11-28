@@ -1,9 +1,8 @@
 -module(prop_perc_lang).
 
--include_lib("proper/include/proper.hrl").
--include_lib("eunit/include/eunit.hrl").
+-include_lib("proper_eunit.hrl").
 
-prop_im_a_test_tmp() ->
+prop_parse_print_almost_symmetric() ->
     ?FORALL(D, perc_defs:defs(),
             begin
                 A = {ok, perc_defs:apply_types(
@@ -19,16 +18,3 @@ prop_im_a_test_tmp() ->
                 A == B
             end
            ).
-
-proper_test_() ->
-    [{atom_to_list(F),
-      {timeout, 600,
-       fun () -> ?assert(
-                    proper:quickcheck(
-                      ?MODULE:F(),
-                      [long_result, {to_file, user}])
-                   )
-       end
-      }
-     }
-     || {F, 0} <- ?MODULE:module_info(exports), F > 'prop_', F < 'prop`'].
