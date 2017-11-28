@@ -1,10 +1,16 @@
 -module(perc_id).
 
+-include_lib("proper/include/proper.hrl").
+
 %% API exports
 -export([
     show/1,
     parse/1
   ]).
+
+-export([
+    gen/0
+   ]).
 
 -export_type([
     id/0
@@ -62,3 +68,10 @@ should_quote(Id) ->
             _:_ ->
                 true
         end.
+
+%%====================================================================
+%% Proper Generators
+%%====================================================================
+
+gen() ->
+    ?LET(I, id(), I).

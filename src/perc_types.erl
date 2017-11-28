@@ -264,7 +264,7 @@ basic_ignored_gen() ->
        ) -> proper_types:type().
 func_gen(Names, Depth) ->
     ?LET(Type, generator_(Names, Depth),
-         ?LET(Ids, {perc_id:id(), perc_id:id()},
+         ?LET(Ids, {perc_id:gen(), perc_id:gen()},
               make_function(Ids, Type)
              )
         ).
