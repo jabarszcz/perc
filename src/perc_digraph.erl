@@ -2,7 +2,7 @@
 
 %% API exports
 -export([
-    make/2,
+    make/1,
     delete/1,
     reduce_ignored/2,
     compute_deps/2,
@@ -38,11 +38,10 @@
 %% API functions
 %%====================================================================
 
--spec make(
-        [perc_defs:record_def()],
-        [perc_defs:usertype_def()]
-       ) -> state().
-make(Records, UserTypes) ->
+-spec make(perc_defs:defs()) -> state().
+make(Defs) ->
+    Records = perc_defs:get_records(Defs),
+    UserTypes = perc_defs:get_usertypes(Defs),
     State1 = #state{},
     State2 = lists:foldl(fun add_record/2, State1, Records),
     State3 = lists:foldl(fun add_usertype/2, State2, UserTypes),

@@ -13,74 +13,65 @@
 
 -spec reduce(perc_gen:gen()) -> perc_gen:gen().
 reduce(Gen) ->
-    reduce_unions(
-      reduce_deps(
-        reduce_usertypes(
-          reduce_ignored(Gen)
-         )
-       )
-     ).
+    Defs = perc_gen:get_defs(Gen),
+    Opts = perc_gen:get_opts(Gen),
+    Exported = perc_opts:get_exported(Opts),
+    NewDefs =
+        reduce_unions(
+          reduce_deps(
+            reduce_usertypes(
+              reduce_ignored(Defs)
+             ),
+            Exported
+           )
+         ),
+    perc_gen:set_defs(Gen, NewDefs).
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
--spec reduce_deps(perc_gen:gen()) -> perc_gen:gen().
-reduce_deps(Gen) ->
-    Defs = perc_gen:get_defs(Gen),
-    Opts = perc_gen:get_opts(Gen),
+-spec reduce_deps(perc_defs:defs(), [string()]) -> perc_defs:defs().
+reduce_deps(Defs, Exported) ->
     RecordDefs = perc_defs:get_records(Defs),
     UserTypeDefs = perc_defs:get_usertypes(Defs),
-    Graph = perc_digraph:make(RecordDefs, UserTypeDefs),
-    Deps = perc_digraph:compute_deps(Graph, perc_opts:get_exported(Opts)),
+    Graph = perc_digraph:make(Defs),
+    Deps = perc_digraph:compute_deps(Graph, Exported),
     DepsSet = sets:from_list(Deps),
     NewRecords =
         [R || R <- RecordDefs,
               sets:is_element(
-                perc_types:make_record(perc_defs:get_record_def_name(R)),
+                perc_defs:def_to_type(R),
                 DepsSet
                )
         ],
     NewUserTypes =
         [U || U <- UserTypeDefs,
               sets:is_element(
-                perc_types:make_usertype(perc_defs:get_usertype_def_name(U)),
+                perc_defs:def_to_type(U),
                 DepsSet
                )
         ],
     perc_digraph:delete(Graph),
-    perc_gen:set_defs(Gen, perc_defs:make(NewRecords, NewUserTypes)).
+    perc_defs:make(NewRecords, NewUserTypes).
 
--spec reduce_ignored(perc_gen:gen()) -> perc_gen:gen().
-reduce_ignored(Gen) ->
-    Defs = perc_gen:get_defs(Gen),
-    Records = perc_defs:get_records(Defs),
-    UserTypes = perc_defs:get_usertypes(Defs),
-    Graph = perc_digraph:make(Records, UserTypes),
+-spec reduce_ignored(perc_defs:defs()) -> perc_defs:defs().
+reduce_ignored(Defs) ->
+    Graph = perc_digraph:make(Defs),
     Fun = fun(T) -> perc_digraph:reduce_ignored(Graph, T) end,
-    NewRecords = [reduce_types_in_record(Fun, R) || R <- Records],
-    NewUserTypes = [reduce_types_in_usertype(Fun, U) || U <- UserTypes],
+    NewDefs = perc_defs:apply_types(Fun, Defs),
     perc_digraph:delete(Graph),
-    perc_gen:set_defs(Gen, perc_defs:make(NewRecords, NewUserTypes)).
+    NewDefs.
 
--spec reduce_unions(perc_gen:gen()) -> perc_gen:gen().
-reduce_unions(Gen) ->
-    Defs = perc_gen:get_defs(Gen),
-    Records = perc_defs:get_records(Defs),
-    UserTypes = perc_defs:get_usertypes(Defs),
+-spec reduce_unions(perc_defs:defs()) -> perc_defs:defs().
+reduce_unions(Defs) ->
     Fun = fun(Type) -> reduce_unions_in_type(Type) end,
-    NewRecords =
-        [reduce_types_in_record(Fun, R) || R <- Records],
-    NewUserTypes =
-        [reduce_types_in_usertype(Fun, U) || U <- UserTypes],
-    perc_gen:set_defs(Gen, perc_defs:make(NewRecords, NewUserTypes)).
+    perc_defs:apply_types(Fun, Defs).
 
--spec reduce_usertypes(perc_gen:gen()) -> perc_gen:gen().
-reduce_usertypes(Gen) ->
-    Defs = perc_gen:get_defs(Gen),
-    Records = perc_defs:get_records(Defs),
+-spec reduce_usertypes(perc_defs:defs()) -> perc_defs:defs().
+reduce_usertypes(Defs) ->
+    Graph = perc_digraph:make(Defs),
     UserTypes = perc_defs:get_usertypes(Defs),
-    Graph = perc_digraph:make(Records, UserTypes),
     UserTypeDict =
         dict:from_list(
           [{perc_types:make_usertype(perc_defs:get_usertype_def_name(U)), U}
@@ -88,39 +79,9 @@ reduce_usertypes(Gen) ->
          ),
     Subs = perc_digraph:make_substitutions(Graph, UserTypeDict),
     Fun = fun(Type) -> perc_digraph:reduce_usertypes(Type, Subs) end,
-    NewRecords =
-        [reduce_types_in_record(Fun, R) || R <- Records],
-    NewUserTypes =
-        [reduce_types_in_usertype(Fun, U) || U <- UserTypes],
+    NewDefs = perc_defs:apply_types(Fun, Defs),
     perc_digraph:delete(Graph),
-    perc_gen:set_defs(Gen, perc_defs:make(NewRecords, NewUserTypes)).
-
--spec reduce_types_in_record(
-        fun((perc_types:perc_type()) -> perc_types:perc_type()),
-        perc_defs:record_def()
-       ) -> perc_defs:record_def().
-reduce_types_in_record(Fun, RecordDef) ->
-    Fields = perc_defs:get_record_def_fields(RecordDef),
-    NewFields = [reduce_types_in_field(Fun, F) || F <- Fields],
-    perc_defs:set_record_def_fields(RecordDef, NewFields).
-
--spec reduce_types_in_field(
-        fun((perc_types:perc_type()) -> perc_types:perc_type()),
-        perc_defs:record_field()
-       ) -> perc_defs:record_field().
-reduce_types_in_field(Fun, Field) ->
-    Type = perc_defs:get_record_field_type(Field),
-    NewType = Fun(Type),
-    perc_defs:set_record_field_type(Field, NewType).
-
--spec reduce_types_in_usertype(
-        fun((perc_types:perc_type()) -> perc_types:perc_type()),
-        perc_defs:usertype_def()
-       ) -> perc_defs:usertype_def().
-reduce_types_in_usertype(Fun, UserTypeDef) ->
-    Type = perc_defs:get_usertype_def_type(UserTypeDef),
-    NewType = Fun(Type),
-    perc_defs:set_usertype_def_type(UserTypeDef, NewType).
+    NewDefs.
 
 -spec reduce_unions_in_type(perc_types:perc_type()) -> perc_types:perc_types().
 reduce_unions_in_type(Type) ->

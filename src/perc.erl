@@ -83,9 +83,7 @@ gen_from_options(Opts) ->
 
 save_graph(Gen, Filename, Format) ->
     Defs = perc_gen:get_defs(Gen),
-    RecordDefs = perc_defs:get_records(Defs),
-    UserTypeDefs = perc_defs:get_usertypes(Defs),
-    Graph = perc_digraph:make(RecordDefs, UserTypeDefs),
+    Graph = perc_digraph:make(Defs),
     Ret = perc_digraph:save(Graph, Filename, Format),
     perc_digraph:delete(Graph),
     Ret.
