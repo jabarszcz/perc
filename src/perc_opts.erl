@@ -46,7 +46,8 @@
                 | so | {so, boolean()}
                 | graph | {graph, boolean()}
                 | {schema, string()}
-                | force | {force, boolean()}.
+                | force | {force, boolean()}
+                | absolute | {absolute, boolean()}.
 
 -type options() :: [option()].
 
@@ -110,17 +111,22 @@ get_sopath(Opts) ->
     AppName = get_appname(Opts),
     Dir = proplists:get_value(cpp_dir, Opts, "./priv"),
     SoName = proplists:get_value(cpp_out, Opts, "generated"), % without ext
-    case AppName of
-        undefined ->
-            filename:join(Dir, SoName);
-        _ ->
-            AppAtom = list_to_atom(AppName),
-            case code:lib_dir(AppAtom) of
-                {error, bad_name} ->
-                    filename:join(Dir, SoName);
-                Root ->
-                    filename:join([Root, Dir, SoName])
-            end
+    Path =
+        case AppName of
+            undefined ->
+                filename:join(Dir, SoName);
+            _ ->
+                AppAtom = list_to_atom(AppName),
+                case code:lib_dir(AppAtom) of
+                    {error, bad_name} ->
+                        filename:join(Dir, SoName);
+                    Root ->
+                        filename:join([Root, Dir, SoName])
+                end
+        end,
+    case proplists:get_bool(absolute, Opts) of
+        true -> filename:absname(Path);
+        _ -> Path
     end.
 
 -spec has_compile_cpp(options()) -> boolean().
@@ -191,7 +197,9 @@ optspec() ->
      {include, undefined, "include", string,
       ".h file to include in the generated native code"},
      {force, $F, "force", boolean,
-      "Force perc to run even if the generated files are newer than the input"}
+      "Force perc to run even if the generated files are newer than the input"},
+     {absolute, undefined, "absolute", boolean,
+      "Use an absolute paths in the generated files"}
     ].
 
 -spec optspec_nodefaults() -> [{atom(),
