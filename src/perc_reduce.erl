@@ -35,7 +35,10 @@ reduce(Gen) ->
 %% Internal functions
 %%====================================================================
 
--spec reduce_deps(perc_defs:defs(), [string()]) -> perc_defs:defs().
+-spec reduce_deps(
+        perc_defs:defs(),
+        [perc_types:perc_type()]
+       ) -> perc_defs:defs().
 reduce_deps(Defs, Exported) ->
     RecordDefs = perc_defs:get_records(Defs),
     UserTypeDefs = perc_defs:get_usertypes(Defs),
@@ -78,8 +81,8 @@ reduce_usertypes(Defs) ->
     UserTypes = perc_defs:get_usertypes(Defs),
     UserTypeDict =
         dict:from_list(
-          [{perc_types:make_usertype(perc_defs:get_usertype_def_name(U)), U}
-          || U <- UserTypes]
+          [{perc_defs:def_to_type(U), U}
+           || U <- UserTypes]
          ),
     Subs = perc_digraph:make_substitutions(Graph, UserTypeDict),
     Fun = fun(Type) -> perc_digraph:reduce_usertypes(Type, Subs) end,
