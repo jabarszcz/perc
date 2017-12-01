@@ -18,6 +18,7 @@
     get_usertype_name/1,
     get_function_names/1,
     get_function_arg/1,
+    is_reference_type/1,
     make_ignored/0,
     make_ignored/1,
     make_undefined_atom/0,
@@ -128,6 +129,14 @@ get_function_names({function, {Enc, Dec}, _}) ->
 -spec get_function_arg(perc_type()) -> perc_type().
 get_function_arg({function, {_, _}, Arg}) ->
     Arg.
+
+-spec is_reference_type(perc_type()) -> boolean().
+is_reference_type(T) ->
+    case get_type(T) of
+        record -> true;
+        usertype -> true;
+        _ -> false
+    end.
 
 -spec make_ignored() -> perc_type().
 make_ignored() ->

@@ -17,12 +17,8 @@ any(List) ->
         perc_defs:defs()
        ) -> boolean().
 types_all(Fun, Defs) ->
-    Records = perc_defs:get_records(Defs),
-    Fields = lists:append([perc_defs:get_record_def_fields(R) || R <- Records]),
-    FieldTypes = [perc_defs:get_record_field_type(F) || F <- Fields],
-    Usertypes = perc_defs:get_usertypes(Defs),
-    UsertypeTypes = [perc_defs:get_usertype_def_type(U) || U <- Usertypes],
-    lists:all(Fun, FieldTypes) and lists:all(Fun, UsertypeTypes).
+    Types = perc_defs:get_all_types(Defs),
+    lists:all(Fun, Types).
 
 defs_exported_gen() ->
     ?LET(Defs, perc_defs:generator(),
@@ -53,6 +49,29 @@ has_no_dangling_refs(Type, DefinedRefsSet) ->
       Type
      ).
 
+refs_set(Type) ->
+    perc_types:fold(
+      fun(T, Acc) ->
+              ThisSet =
+                  case perc_types:is_reference_type(T) of
+                      true ->
+                          sets:from_list([T]);
+                      _ ->
+                          sets:new()
+                  end,
+              sets:union([ThisSet | Acc])
+      end,
+      Type
+     ).
+
+defs_all_defs_referenced_or_exported(Defs, Exported) ->
+    Types = perc_defs:get_all_types(Defs),
+    Referenced = sets:union(lists:map(fun refs_set/1, Types)),
+    Dict = perc_defs:type_to_def_dict(Defs),
+    DefinedRefsSet = sets:from_list(dict:fetch_keys(Dict)),
+    ReferencedSet = sets:union(Referenced, sets:from_list(Exported)),
+    sets:is_subset(DefinedRefsSet, ReferencedSet).
+
 defs_no_dangling_references(Defs, Exported) ->
     Dict = perc_defs:type_to_def_dict(Defs),
     DefinedRefsSet = sets:from_list(dict:fetch_keys(Dict)),
@@ -81,7 +100,8 @@ prop_reduce_deps() ->
     ?FORALL({D, Exported}, defs_exported_gen(),
             begin
                 Reduced = perc_reduce:reduce_deps(D, Exported),
-                defs_no_dangling_references(Reduced, Exported)
+                defs_no_dangling_references(Reduced, Exported) andalso
+                    defs_all_defs_referenced_or_exported(Reduced, Exported)
             end
            ).
 

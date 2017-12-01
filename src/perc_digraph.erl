@@ -81,7 +81,7 @@ compute_deps(State, Exported) ->
     Dict = State#state.dict,
     ExportedVertices = [dict:fetch(E, Dict) || E <- Exported],
     Reachable = digraph_utils:reachable(ExportedVertices, Graph),
-    [T || T <- get_labels(Graph, Reachable), is_reference_type(T)].
+    [T || T <- get_labels(Graph, Reachable), perc_types:is_reference_type(T)].
 
 -spec make_substitutions(
         state(),
@@ -234,19 +234,10 @@ filter_ignored_path(Path) ->
 filter_ignored_path([], _, Acc) ->
     Acc;
 filter_ignored_path([Elem|Path], Next, Acc) ->
-    IsReference = is_reference_type(Elem),
+    IsReference = perc_types:is_reference_type(Elem),
     case IsReference or Next of
         true ->
             filter_ignored_path(Path, IsReference, [Elem | Acc]);
         _ ->
             filter_ignored_path(Path, IsReference, Acc)
-    end.
-
-is_reference_type(Type) ->
-    case perc_types:get_type(Type) of
-        record ->
-            true;
-        usertype ->
-            true;
-        _ -> false
     end.

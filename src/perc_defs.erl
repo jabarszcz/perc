@@ -5,6 +5,7 @@
 -export([
     apply_types/2,
     def_to_type/1,
+    get_all_types/1,
     get_record_def_fields/1,
     get_record_def_name/1,
     get_record_field_filters/1,
@@ -93,6 +94,15 @@ def_to_type(#record_def{name=Name}) ->
     perc_types:make_record(Name);
 def_to_type(#usertype_def{name=Name}) ->
     perc_types:make_usertype(Name).
+
+-spec get_all_types(defs()) -> [perc_types:perc_type()].
+get_all_types(Defs) ->
+    Records = Defs#defs.records,
+    Fields = lists:flatmap(fun get_record_def_fields/1, Records),
+    FieldTypes = lists:map(fun get_record_field_type/1, Fields),
+    Usertypes = Defs#defs.usertypes,
+    UsertypeTypes = lists:map(fun get_usertype_def_type/1, Usertypes),
+    FieldTypes ++ UsertypeTypes.
 
 -spec get_record_def_fields(record_def()) -> [record_field()].
 get_record_def_fields(RecordDef) ->
