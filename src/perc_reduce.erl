@@ -4,7 +4,7 @@
 
 %% API exports
 -export([
-    reduce/1,
+    reduce/2,
     reduce_deps/2,
     reduce_ignored/1,
     reduce_unions/1,
@@ -15,25 +15,16 @@
 % API functions
 %%====================================================================
 
--spec reduce(perc_gen:gen()) -> perc_gen:gen().
-reduce(Gen) ->
-    Defs = perc_gen:get_defs(Gen),
-    Opts = perc_gen:get_opts(Gen),
-    Exported = perc_opts:get_exported(Opts),
-    NewDefs =
-        reduce_unions(
-          reduce_deps(
-            reduce_usertypes(
-              reduce_ignored(Defs)
-             ),
-            Exported
-           )
+-spec reduce(perc_defs:defs(), [perc_types:perc_types()]) -> perc_defs:defs().
+reduce(Defs, Exported) ->
+    reduce_unions(
+      reduce_deps(
+        reduce_usertypes(
+          reduce_ignored(Defs)
          ),
-    perc_gen:set_defs(Gen, NewDefs).
-
-%%====================================================================
-%% Internal functions
-%%====================================================================
+        Exported
+       )
+     ).
 
 -spec reduce_deps(
         perc_defs:defs(),
@@ -89,6 +80,10 @@ reduce_usertypes(Defs) ->
     NewDefs = perc_defs:apply_types(Fun, Defs),
     perc_digraph:delete(Graph),
     NewDefs.
+
+%%====================================================================
+%% Internal functions
+%%====================================================================
 
 -spec reduce_unions_in_type(perc_types:perc_type()) -> perc_types:perc_types().
 reduce_unions_in_type(Type) ->

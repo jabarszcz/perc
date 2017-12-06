@@ -68,7 +68,7 @@
 -type perc_tuple() :: {tuple, [perc_type()]}.
 -type perc_record() :: {record, perc_id:id()}.
 -type perc_usertype() :: {usertype, perc_id:id()}.
--type perc_union() :: {union, [perc_type()]}.
+-type perc_union() :: {union, nonempty_list(perc_type())}.
 -type perc_function() :: {function,
                           {undefined | perc_id:id(),
                            undefined | perc_id:id()},
@@ -253,10 +253,11 @@ generator_(Names, Depth) when Depth < 1 ->
 generator_(Names, Depth) ->
     proper_types:oneof(
       [
+       ?LET(NonEmptyTypes, non_empty(list(generator_(Names, Depth-1))),
+            make_union(NonEmptyTypes)
+           ),
        ?LET(Types, list(generator_(Names, Depth-1)),
-            proper_types:oneof(
-              [make_union(Types), make_tuple(Types)]
-             )
+            make_tuple(Types)
            ),
        ?LET(Type, generator_(Names, Depth-1), make_list(Type)),
        func_gen(Names, Depth-1)

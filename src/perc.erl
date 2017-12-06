@@ -40,18 +40,20 @@ generate_codecs(Options) ->
     of
         true ->
             Gen = gen_from_options(Options),
-            Reduced = perc_reduce:reduce(Gen),
-            generate_nif(Reduced),
-            generate_erl(Reduced),
+            Defs = perc_gen:get_defs(Gen),
+            Exports = perc_opts:get_exported(Options),
+            Reduced = perc_reduce:reduce(Defs, Exports),
+            ReducedGen = perc_gen:set_defs(Gen, Reduced),
+            generate_nif(ReducedGen),
+            generate_erl(ReducedGen),
             case perc_opts:has_graph(Options) of
-                true -> save_graph(Reduced, "type_graph.png", "png");
+                true -> save_graph(ReducedGen, "type_graph.png", "png");
                 _ -> ok
             end,
             case perc_opts:get_schema(Options) of
                 undefined -> ok;
                 Filename ->
-                    Defs = perc_gen:get_defs(Reduced),
-                    file:write_file(Filename, perc_prettypr:format(Defs))
+                    file:write_file(Filename, perc_prettypr:format(Reduced))
             end,
             ok;
         _ ->
