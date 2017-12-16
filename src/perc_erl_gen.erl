@@ -1,5 +1,7 @@
 -module(perc_erl_gen).
 
+-include_lib("syntax_tools/include/merl.hrl").
+
 %% API exports
 -export([
     generate/1
@@ -9,30 +11,43 @@
 %% API functions
 %%====================================================================
 
--spec generate(perc_gen:gen()) -> iolist().
-generate(Gen) ->
-    Opts = perc_gen:get_opts(Gen),
+-spec generate(perc_opts:options()) -> iolist().
+generate(Opts) ->
+    SoPath = filename:rootname(perc_opts:get_sopath_indirect(Opts)),
+    AppName = perc_opts:get_appname(Opts),
     ModuleAttr =
         erl_syntax:attribute(
           erl_syntax:atom(module),
-          [erl_syntax:atom(perc_opts:get_erl_out(Opts))]
+          [erl_syntax:atom(perc_opts:get_module_name(Opts))]
          ),
     Init =
-        erl_syntax:function(
-          erl_syntax:atom(init),
-          [erl_syntax:clause(
-             none,
-             [erl_syntax:match_expr(
-                erl_syntax:atom(ok),
-                erl_syntax:application(
-                  erl_syntax:atom(erlang),
-                  erl_syntax:atom(load_nif),
-                  [erl_syntax:string(perc_opts:get_sopath(Opts)),
-                   erl_syntax:integer(0)]
+        case AppName of
+            undefined ->
+                merl:tree(
+                  ?Q("init() ->"
+                     "  ok = erlang:load_nif(\"'@SoPath@\", 0)."
+                    )
+                  );
+            _ ->
+                merl:tree(
+                  ?Q("init() -> "
+                     "  AppStr ="
+                     "    case code:lib_dir('@AppName@') of"
+                     "        {error, bad_name} ->"
+                     "           erlang:error({bad_appname, '@AppName@'});"
+                     "        Str -> Str"
+                     "    end,"
+                     "  ok ="
+                     "    erlang:load_nif("
+                     "      filename:join("
+                     "        AppStr,"
+                     "        \"'@SoPath@\""
+                     "       ),"
+                     "      0"
+                     "     )."
+                    )
                  )
-               )]
-            )]
-         ),
+        end,
     Funcs =
         [erl_syntax:function( %% TODO spec
            erl_syntax:atom(

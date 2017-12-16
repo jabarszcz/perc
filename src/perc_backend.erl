@@ -4,7 +4,7 @@
 -export([
     backends/0,
     backend_from_name/1,
-    generate_nif_source/1,
+    generate_nif_source/2,
     get_nif_function_name/3,
     template/2
   ]).
@@ -37,10 +37,8 @@ backend_from_name(Name) ->
          backends()
         )).
 
--spec generate_nif_source(perc_gen:gen()) -> iolist().
-generate_nif_source(Gen) ->
-    Opts = perc_gen:get_opts(Gen),
-    Defs = perc_gen:get_defs(Gen),
+-spec generate_nif_source(perc_defs:defs(), perc_opts:options()) -> iolist().
+generate_nif_source(Defs, Opts) ->
     Backends = perc_opts:get_backends(Opts),
     Records = perc_defs:get_records(Defs),
     UserTypes = perc_defs:get_usertypes(Defs),
@@ -57,7 +55,7 @@ generate_nif_source(Gen) ->
          || Type <- perc_opts:get_exported(Opts),
             Backend <- Backends],
     ModuleDict =
-        [{name, perc_opts:get_erl_out(Opts)},
+        [{name, perc_opts:get_module_name(Opts)},
          {records, [def_cid(R, IdMap) || R <- Records]},
          {usertypes, [def_cid(U, IdMap) || U <- UserTypes]},
          {nif_funcs, NifFuncs}],

@@ -34,28 +34,22 @@ main(Args) ->
 
 -spec generate_codecs(list()) -> ok | no_return().
 generate_codecs(Options) ->
+    Opts = perc_opts:normalize(Options),
     case
-        (should_run(Options) or perc_opts:has_force(Options))
-        and (perc_opts:get_exported(Options) =/= [])
+        should_run(Opts) and (perc_opts:get_exported(Opts) =/= [])
     of
         true ->
-            Gen = gen_from_options(Options),
-            Defs = perc_gen:get_defs(Gen),
-            Exports = perc_opts:get_exported(Options),
+            Defs = read_defs(Opts),
+            Exports = perc_opts:get_exported(Opts),
             Reduced = perc_reduce:reduce(Defs, Exports),
-            ReducedGen = perc_gen:set_defs(Gen, Reduced),
-            generate_nif(ReducedGen),
-            generate_erl(ReducedGen),
-            case perc_opts:has_graph(Options) of
-                true -> save_graph(ReducedGen, "type_graph.png", "png");
-                _ -> ok
-            end,
-            case perc_opts:get_schema(Options) of
-                undefined -> ok;
-                Filename ->
-                    file:write_file(Filename, perc_prettypr:format(Reduced))
-            end,
-            ok;
+            generate_nif(Reduced, Opts),
+            generate_erl(Opts),
+            [save_graph(Reduced, File, filename:extension(File))
+             || File <- perc_opts:get_outputs_graph(Opts)],
+            output_multiple(
+              perc_prettypr:format(Reduced),
+              perc_opts:get_outputs_schema(Opts)
+             );
         _ ->
             ok
     end.
@@ -64,8 +58,8 @@ generate_codecs(Options) ->
 %% Internal functions
 %%====================================================================
 
--spec gen_from_options(perc_opts:options()) -> perc_gen:gen().
-gen_from_options(Opts) ->
+-spec read_defs(perc_opts:options()) -> perc_defs:defs().
+read_defs(Opts) ->
     {PercInputs, ErlInputs} =
         lists:partition(
           fun(In) ->
@@ -80,11 +74,9 @@ gen_from_options(Opts) ->
              {ok, Parsed} = perc_rparser:parse_defs(Tokens),
              Parsed
          end || F <- PercInputs],
-    Defs = perc_defs:merge([DefsA | DefsB]),
-    perc_gen:make(Defs, Opts).
+    perc_defs:merge([DefsA | DefsB]).
 
-save_graph(Gen, Filename, Format) ->
-    Defs = perc_gen:get_defs(Gen),
+save_graph(Defs, Filename, Format) ->
     Graph = perc_digraph:make(Defs),
     Ret = perc_digraph:save(Graph, Filename, Format),
     perc_digraph:delete(Graph),
@@ -93,87 +85,101 @@ save_graph(Gen, Filename, Format) ->
 should_run(Opts) ->
     try
         InFiles = perc_opts:get_inputs(Opts),
-        DateIn = lists:max(
-                   [begin
-                        {ok, InfoIn} = file:read_file_info(F),
-                        InfoIn#file_info.mtime
-                    end || F <- InFiles]
-                  ),
-        SoPath = perc_opts:get_sopath(Opts),
-        SoFile = io_lib:format("~s.so", [SoPath]),
-        {ok, InfoOut} = file:read_file_info(SoFile),
-        DateOut = InfoOut#file_info.mtime,
+        OutFiles = perc_opts:get_outputs(Opts),
+        DateIn = lists:max(file_mod_dates(InFiles)),
+        DateOut = lists:min(file_mod_dates(OutFiles)),
         DateIn > DateOut
+            orelse perc_opts:has_load(Opts)
+            orelse perc_opts:has_force(Opts)
     catch
         _:{badmatch, _} -> true
     end.
 
--spec generate_nif(perc_gen:gen()) -> ok | no_return().
-generate_nif(Gen) ->
-    Opts = perc_gen:get_opts(Gen),
-    CppStr = perc_backend:generate_nif_source(Gen),
-    SoPath = perc_opts:get_sopath(Opts),
-    ok = filelib:ensure_dir(SoPath),
-    case perc_opts:has_compile_cpp(Opts) of
-        true ->
-            TempFile = lib:nonl(os:cmd("mktemp --suffix '.cpp'")),
-            SoFile = io_lib:format("~s.so", [SoPath]),
-            ErlNifIncludeDir = filename:join(code:root_dir(), "usr/include"),
-            CIncludeDir = code:priv_dir(perc),
-            Flags = perc_opts:get_cpp_flags(Opts),
-            CXX = os:getenv("CXX", "g++"),
-            Cmd = io_lib:format(
-                    "~s -fvisibility=hidden -nodefaultlibs "
-                    "-o ~s -fpic -shared ~s -I ~s -I ~s -I . ~s",
-                    [CXX, SoFile, TempFile, ErlNifIncludeDir,
-                     CIncludeDir, Flags]
-                   ),
-            ok = file:write_file(TempFile, CppStr),
-            io:format("~s~n", [Cmd]), %% TODO remove
-            case os:cmd(Cmd) of
-                [] ->
-                    ok;
-                Error ->
-                    BinError = unicode:characters_to_binary(Error),
-                    erlang:error({cpp_compiler_output, BinError})
-            end;
-        false ->
-            File = io_lib:format("~s.cpp", [SoPath]),
-            ok = file:write_file(File, CppStr)
-    end.
+file_mod_dates(Files) ->
+    [begin
+         {ok, InfoIn} = file:read_file_info(F),
+         InfoIn#file_info.mtime
+     end || F <- Files].
 
--spec generate_erl(perc_gen:gen()) -> ok | no_return().
-generate_erl(Gen) ->
-    ErlForms = perc_erl_gen:generate(Gen),
-    Opts = perc_gen:get_opts(Gen),
-    ErlDir = perc_opts:get_erl_dir(Opts),
-    filelib:ensure_dir(ErlDir),
-    case perc_opts:has_compile_erl(Opts) of
+-spec output(iodata(), string()) -> ok | no_return().
+output(Data, File) ->
+    ok = filelib:ensure_dir(File),
+    ok = file:write_file(File, Data).
+
+-spec output_multiple(iodata(), [string()]) -> ok | no_return().
+output_multiple(Data, Files) ->
+    [output(Data, File) || File <- Files],
+    ok.
+
+-spec temp_file(string()) -> string().
+temp_file(Ext) ->
+    lib:nonl(
+      os:cmd(
+        lists:flatten(
+          io_lib:format("mktemp --suffix '~s'", [Ext])
+         )
+       )
+     ).
+
+-spec temp_dir() -> string().
+temp_dir() ->
+    lib:nonl(os:cmd("mktemp --directory")).
+
+-spec generate_nif(perc_defs:defs(), perc_opts:options()) -> ok | no_return().
+generate_nif(Defs, Opts) ->
+    CppStr = perc_backend:generate_nif_source(Defs, Opts),
+    output_multiple(CppStr, perc_opts:get_outputs_cpp(Opts)),
+    TempFile = temp_file(".cpp"),
+    output(CppStr, TempFile),
+    ErlNifIncludeDir = filename:join(code:root_dir(), "usr/include"),
+    CIncludeDir = code:priv_dir(perc),
+    Flags = perc_opts:get_cpp_flags(Opts),
+    CXX = perc_opts:get_cxx(Opts),
+    [begin
+         Cmd = io_lib:format(
+                 "~s -fvisibility=hidden -nodefaultlibs "
+                 "-o ~s -fpic -shared ~s -I ~s -I ~s -I . ~s",
+                 [CXX, So, TempFile, ErlNifIncludeDir, CIncludeDir, Flags]
+                ),
+         io:format("~s~n", [Cmd]), %% TODO remove
+         case os:cmd(Cmd) of
+             [] ->
+                 ok;
+             Error ->
+                 BinError = unicode:characters_to_binary(Error),
+                 erlang:error({cpp_compiler_output, BinError})
+         end
+     end || So <- perc_opts:get_outputs_so(Opts)],
+    ok.
+
+-spec generate_erl(perc_opts:options()) -> ok | no_return().
+generate_erl(Opts) ->
+    ErlForms = perc_erl_gen:generate(Opts),
+    ErlSource = erl_prettypr:format(erl_syntax:form_list(ErlForms)),
+    output_multiple(ErlSource, perc_opts:get_outputs_erl(Opts)),
+    {Module, Binary} =
+        case compile:forms(ErlForms, [debug_info]) of
+            {ok, ModuleName, Bin} when is_binary(Bin) ->
+                {ModuleName, Bin};
+            {ok, ModuleName, Bin, _Warn} when is_binary(Bin) ->
+                {ModuleName, Bin};
+            Error ->
+                erlang:throw({not_a_binary, Error})
+        end,
+    output_multiple(Binary, perc_opts:get_outputs_beam(Opts)),
+    BeamFile =
+        case perc_opts:get_outputs_beam(Opts) of
+            [] ->
+                Tmp = filename:join(temp_dir(), Module),
+                output(Binary, Tmp),
+                Tmp;
+            [B | _] ->
+                B
+        end,
+    case perc_opts:has_load(Opts) of
         true ->
-            {Module, Binary} =
-                case compile:forms(ErlForms, [debug_info]) of
-                    {ok, ModuleName, Bin} when is_binary(Bin) ->
-                        {ModuleName, Bin};
-                    {ok, ModuleName, Bin, _Warn} when is_binary(Bin) ->
-                        {ModuleName, Bin};
-                    Error ->
-                        erlang:error({not_a_binary, Error})
-                end,
-            File = filename:join(
-                     ErlDir,
-                     io_lib:format("~s.beam", [Module])
-                    ),
-            ok = file:write_file(File, Binary),
-            case perc_opts:has_load(Opts) of
-                true ->
-                    {module, _} = code:load_abs(filename:join(ErlDir, Module)),
-                    ok;
-                _ ->
-                    ok
-            end;
-        false ->
-            Output = erl_prettypr:format(erl_syntax:form_list(ErlForms)),
-            ModuleName = perc_opts:get_erl_out(Opts),
-            File = filename:join(ErlDir, io_lib:format("~s.erl", [ModuleName])),
-            ok = file:write_file(File, Output)
+            {module, _} = code:load_binary(Module, BeamFile, Binary),
+            ok;
+        _ ->
+            ok
     end.
