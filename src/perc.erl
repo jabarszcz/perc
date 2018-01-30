@@ -1,7 +1,5 @@
 -module(perc).
 
--include_lib("kernel/include/file.hrl").
-
 %% API exports
 -export([
     main/1,
@@ -83,23 +81,21 @@ save_graph(Defs, Filename, Format) ->
     Ret.
 
 should_run(Opts) ->
-    try
-        InFiles = perc_opts:get_inputs(Opts),
-        OutFiles = perc_opts:get_outputs(Opts),
-        DateIn = lists:max(file_mod_dates(InFiles)),
-        DateOut = lists:min(file_mod_dates(OutFiles)),
-        DateIn > DateOut
-            orelse perc_opts:has_load(Opts)
-            orelse perc_opts:has_force(Opts)
-    catch
-        _:{badmatch, _} -> true
+    InFiles = perc_opts:get_inputs(Opts),
+    OutFiles = perc_opts:get_outputs(Opts),
+    case {file_mod_dates(InFiles), file_mod_dates(OutFiles)} of
+        {[], _} -> true;
+        {_, []} -> true;
+        {InDates, OutDates} ->
+            DateIn = lists:max(InDates),
+            DateOut = lists:min(OutDates),
+            DateIn > DateOut
+                orelse perc_opts:has_load(Opts)
+                orelse perc_opts:has_force(Opts)
     end.
 
 file_mod_dates(Files) ->
-    [begin
-         {ok, InfoIn} = file:read_file_info(F),
-         InfoIn#file_info.mtime
-     end || F <- Files].
+    [M || M <- [filelib:last_modified(F) || F <- Files], M =/= 0].
 
 -spec output(iodata(), string()) -> ok | no_return().
 output(Data, File) ->
