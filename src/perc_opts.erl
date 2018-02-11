@@ -116,7 +116,9 @@ get_module_name(Opts) ->
            fun(X) -> X =/= "" end,
            lists:usort(
              [filename:rootname(filename:basename(F))
-              || F <- ErlOuts ++ BeamOuts]
+              || F <- ErlOuts ++ BeamOuts,
+                 not lists:suffix("/", F) % basename ignores the trailing slash
+             ]
             )
           )}
     of
@@ -345,8 +347,11 @@ get_path(Opts, Path) ->
 -spec maybe_add_default_name_ext(string(), string(), string()) -> string().
 maybe_add_default_name_ext(Filename, DefaultName, DefaultExt) ->
     NewFilename =
-        case filename:basename(Filename) of
-            [] ->
+        case
+            filename:basename(Filename) =:= "" orelse
+            lists:suffix("/", Filename) % basename ignores the trailing slash
+        of
+            true ->
                 filename:join(filename:dirname(Filename), DefaultName);
             _ ->
                 Filename

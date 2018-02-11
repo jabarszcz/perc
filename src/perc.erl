@@ -95,7 +95,11 @@ should_run(Opts) ->
     end.
 
 file_mod_dates(Files) ->
-    [M || M <- [filelib:last_modified(F) || F <- Files], M =/= 0].
+    Dates = [filelib:last_modified(F) || F <- Files],
+    case lists:any(fun(D) -> D =:= 0 end, Dates) of
+        true -> [];
+        _ -> Dates
+    end.
 
 -spec output(iodata(), string()) -> ok | no_return().
 output(Data, File) ->
