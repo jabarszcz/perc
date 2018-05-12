@@ -1,17 +1,20 @@
 {% autoescape off %}
 template <>
-int json_encoder<{{ name_template }}>::encode(
-    struct encoder *e,
+encode_result json_encoder<{{ name_template }}>::encode(
+    Encoder *e,
     const ERL_NIF_TERM term)
 {% templatetag openbrace %}
     size_t index = e->index;
     bool is_first=true;
     int arity, n_encoded=0;
     const ERL_NIF_TERM *fields;
-    if (!enif_get_tuple(e->env, term, &arity, &fields))
-        goto fail;
-    if (!enif_is_identical(enif_make_atom(e->env, "{{ name }}"), fields[0]))
-        goto fail;
+    ERL_NIF_TERM record_atom = enif_make_atom(e->env, "{{ name }}");
+    if (!enif_get_tuple(e->env, term, &arity, &fields) ||
+        !enif_is_identical(record_atom, fields[0])) {
+            e->index = index;
+            return encode_result::fail(e->env, term, record_atom,
+                                       e->match_index);
+    }
     if (!json_enc_begin_obj(e))
         goto fail;
 {% for field in fields %}
@@ -24,16 +27,25 @@ int json_encoder<{{ name_template }}>::encode(
       && {{ filter }}(e->env, fields[{{ field.index }}], e->opts){% endfor %}
       ) {
         size_t before_field_idx = e->index;
-        if (!JSON_ENC_KEY(e, is_first, "{{ field.name }}"))
+        if (!json_enc_key(e, is_first, BUF("{{ field.name }}")))
             goto fail;
-        int ret = json_encode<{{ field.type_template }}>(
+        encode_result ret = json_encode<{{ field.type_template }}>(
             e,
             fields[{{ field.index }}]
         );
-        if (ret < 0)
-            goto fail;
+        if (!ret.is_success()) {
+            if (ret.is_match_failure() &&
+                !ret.content.failure.field_set) {
+                ret.content.failure.field_name =
+                    enif_make_atom(e->env, "{{ field.name }}");
+                ret.content.failure.record_name = record_atom;
+                ret.content.failure.field_set = true;
+            }
+            e->index = index;
+            return ret;
+        }
         {% if field.no_empty_obj %}
-        if (!ret) {
+        if (!ret.is_not_empy()) {
             e->index = before_field_idx;
         } else {
             n_encoded++;
@@ -46,9 +58,9 @@ int json_encoder<{{ name_template }}>::encode(
 {% endfor %}
     if (!json_enc_end_obj(e))
         goto fail;
-    return n_encoded;
+    return encode_result::succeed(n_encoded);
 fail:
     e->index = index;
-    return -1;
+    return encode_result::fatal();
 {% templatetag closebrace %}
 {% endautoescape %}

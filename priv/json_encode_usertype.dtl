@@ -1,8 +1,8 @@
 {% autoescape off %}
 template <>
 inline
-int json_encoder<{{ name_template }}>::encode(
-    struct encoder *e,
+encode_result json_encoder<{{ name_template }}>::encode(
+    Encoder *e,
     const ERL_NIF_TERM term)
 {% templatetag openbrace %}
     return json_encode<{{ type_template }}>(e, term);

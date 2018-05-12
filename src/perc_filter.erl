@@ -71,7 +71,8 @@ add_automatic_filters(Type, Filters) ->
     {Type1, Filters1} = maybe_add_empty_obj_filter(Type, Filters),
     {Type2, Filters2} = maybe_add_undef_filter(Type1, Filters1),
     {Type3, Filters3} = maybe_add_empty_list_filter(Type2, Filters2),
-    {Type3, Filters3}.
+    {Type4, Filters4} = maybe_add_empty_binary_filter(Type3, Filters3),
+    {Type4, Filters4}.
 
 %%====================================================================
 %% Internal functions
@@ -103,6 +104,14 @@ maybe_add_empty_list_filter(Type, Filters) ->
             {Type, Filters}
     end.
 
+maybe_add_empty_binary_filter(Type, Filters) ->
+    case has(Type, binary) of
+        true ->
+            {Type, [make("no_empty_binary") | Filters]};
+        _ ->
+            {Type, Filters}
+    end.
+
 maybe_add_empty_obj_filter(Type, Filters) ->
     case has(Type, record) of
         true ->
@@ -115,6 +124,8 @@ has(Type, Kind) ->
     case perc_types:get_type(Type) of
         Kind ->
             true;
+        basic ->
+            Kind == perc_types:get_basic_type(Type);
         union ->
             Members = perc_types:get_union_types(Type),
             lists:any(fun(M) -> has(M, Kind) end, Members);

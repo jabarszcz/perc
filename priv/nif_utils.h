@@ -11,7 +11,7 @@
 
 
 static inline
-int _nif_utils_assert(ErlNifEnv* env, int test, const char *message)
+bool _nif_utils_assert(ErlNifEnv* env, bool test, const char *message)
 {
         if (!test) {
                 ERL_NIF_TERM reason =
