@@ -48,6 +48,14 @@ generate(Opts) ->
                     )
                  )
         end,
+    OptBody =
+        erl_syntax:abstract(Opts),
+    GetOpts =
+        merl:tree(
+          ?Q("getopts() ->"
+             "  _@OptBody."
+            )
+         ),
     Funcs =
         [erl_syntax:function( %% TODO spec
            erl_syntax:atom(
@@ -69,6 +77,7 @@ generate(Opts) ->
          || RecName <- perc_opts:get_exported(Opts),
             Action <- ["encode"], %% TODO
             Backend <- perc_opts:get_backends(Opts)],
+    AllFuncs = [Init, GetOpts | Funcs],
     ExportAttrs =
         erl_syntax:attribute(
           erl_syntax:atom(export),
@@ -77,17 +86,9 @@ generate(Opts) ->
                 erl_syntax:function_name(Func),
                 erl_syntax:integer(erl_syntax:function_arity(Func))
                )
-              || Func <- [Init | Funcs]]
-            )]
-         ),
-    OnloadAttr =
-        erl_syntax:attribute(
-          erl_syntax:atom(on_load),
-          [erl_syntax:tuple(
-             [erl_syntax:function_name(Init),
-              erl_syntax:integer(erl_syntax:function_arity(Init))]
+              || Func <- AllFuncs]
             )]
          ),
     erl_syntax:revert_forms(
-      [ModuleAttr, ExportAttrs, OnloadAttr, Init | Funcs]
+      [ModuleAttr, ExportAttrs | AllFuncs]
      ).
